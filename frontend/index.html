@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zabota Tables</title>
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body { 
+            font-family: 'Inter', system-ui, sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh; 
+            overflow: hidden;
+        }
+
+        /* === АВТОРИЗАЦИЯ === */
+        #login-screen {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .login-box {
+            background: white;
+            padding: 50px 40px;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            width: 400px;
+            text-align: center;
+        }
+
+        .login-box h1 {
+            font-size: 32px;
+            color: #667eea;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .login-box p {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 15px;
+            transition: all 0.3s;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn-primary {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .error-msg {
+            color: #e74c3c;
+            font-size: 13px;
+            margin-top: 10px;
+            display: none;
+        }
+
+        /* === ВЫБОР ТАБЛИЦЫ === */
+        #sheet-selector {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .selector-box {
+            background: white;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            width: 500px;
+        }
+
+        .selector-box h2 {
+            font-size: 24px;
+            color: #333;
+            margin-bottom: 24px;
+        }
+
+        /* === ГЛАВНЫЙ ИНТЕРФЕЙС === */
+        #main-app {
+            display: none;
+            flex-direction: column;
+            height: 100vh;
+            background: #f5f5f5;
+        }
+
+        .app-header {
+            display: flex;
+            align-items: center;
+            padding: 12px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: 700;
+            margin-right: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .file-info {
+            flex-grow: 1;
+        }
+
+        .file-name {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+
+        .sheet-tabs {
+            display: flex;
+            gap: 5px;
+            margin-top: 4px;
+        }
+
+        .sheet-tab {
+            padding: 4px 12px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .sheet-tab:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .sheet-tab.active {
+            background: white;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .save-status {
+            font-size: 13px;
+            margin-right: 20px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 6px;
+        }
+
+        .btn-logout {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn-logout:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .toolbar {
+            background: white;
+            padding: 10px 20px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .tool-btn {
+            padding: 8px 12px;
+            background: #f5f5f5;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            color: #333;
+            transition: all 0.2s;
+        }
+
+        .tool-btn:hover {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .tool-btn .material-icons {
+            font-size: 18px;
+        }
+        
+        /* Стили для селектора листов */
+        #sheet-dropdown {
+            padding: 8px 12px;
+            font-size: 13px;
+            font-family: 'Inter', system-ui, sans-serif;
+        }
+        
+        #sheet-dropdown:hover {
+            background: #e8eaed;
+            color: #333;
+        }
+        
+        #sheet-dropdown:focus {
+            outline: 2px solid #667eea;
+            background: white;
+        }
+
+        .separator {
+            width: 1px;
+            height: 24px;
+            background: #e0e0e0;
+            margin: 0 5px;
+        }
+
+        .formula-bar {
+            display: flex;
+            align-items: center;
+            padding: 8px 20px;
+            background: white;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .fx-label {
+            color: #666;
+            font-weight: 600;
+            margin-right: 12px;
+            font-size: 14px;
+        }
+
+        .formula-input {
+            flex-grow: 1;
+            border: 1px solid #e0e0e0;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: 'Courier New', monospace;
+            background: white;
+        }
+
+        .formula-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+        }
+
+        #hot-container {
+            flex-grow: 1;
+            overflow: auto;
+            background: white;
+            margin: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            min-height: 400px;
+            height: calc(100vh - 200px);
+        }
+
+        /* Стили таблицы */
+        .handsontable th {
+            background: #f8f9fa !important;
+            color: #666 !important;
+            font-weight: 600 !important;
+            font-size: 11px !important;
+        }
+
+        .handsontable td {
+            font-size: 13px !important;
+            border-color: #e8e8e8 !important;
+        }
+
+        .handsontable .wtBorder.current {
+            background-color: #667eea !important;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .spinning {
+            animation: spin 1s linear infinite;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ЭКРАН АВТОРИЗАЦИИ -->
+    <div id="login-screen">
+        <div class="login-box">
+            <h1>🔐 Zabota Tables</h1>
+            <p>Безопасный доступ к таблицам</p>
+            
+            <div class="input-group">
+                <label>Имя пользователя</label>
+                <input type="text" id="username" placeholder="admin">
+            </div>
+            
+            <div class="input-group">
+                <label>Пароль</label>
+                <input type="password" id="password" placeholder="Введите пароль">
+            </div>
+            
+            <button class="btn-primary" onclick="login()">Войти</button>
+            <div class="error-msg" id="login-error"></div>
+        </div>
+    </div>
+
+    <!-- ВЫБОР ТАБЛИЦЫ -->
+    <div id="sheet-selector">
+        <div class="selector-box">
+            <h2>Выберите таблицу</h2>
+            
+            <div class="input-group">
+                <label>Ссылка на Google Таблицу</label>
+                <input 
+                    type="text" 
+                    id="sheet-url" 
+                    placeholder="https://docs.google.com/spreadsheets/d/...">
+            </div>
+            
+            <button class="btn-primary" onclick="setSheet()">Подключить</button>
+            <div class="error-msg" id="sheet-error"></div>
+        </div>
+    </div>
+
+    <!-- ГЛАВНОЕ ПРИЛОЖЕНИЕ -->
+    <div id="main-app">
+        <div class="app-header">
+            <div class="logo">
+                <span class="material-icons">table_chart</span>
+                Zabota Tables
+            </div>
+            
+            <div class="file-info">
+                <div class="file-name" id="file-name">Загрузка...</div>
+                <div class="sheet-tabs" id="sheet-tabs"></div>
+            </div>
+            
+            <div class="save-status" id="status-text">
+                <span class="material-icons">cloud_done</span>
+                <span>Сохранено</span>
+            </div>
+            
+            <button class="btn-logout" onclick="logout()">Выйти</button>
+        </div>
+
+        <div class="toolbar">
+            <button class="tool-btn" onclick="refreshData()">
+                <span class="material-icons">refresh</span>
+                Обновить
+            </button>
+            <button class="tool-btn" onclick="downloadExcel()">
+                <span class="material-icons">file_download</span>
+                Excel
+            </button>
+
+            <div class="separator"></div>
+            
+            <select id="sheet-dropdown" class="tool-btn" onchange="changeSheet()" style="min-width: 150px;">
+                <option value="">Выберите лист...</option>
+            </select>
+        </div>
+
+        <div class="formula-bar">
+            <span class="fx-label">fx</span>
+            <input type="text" class="formula-input" id="formula-input" placeholder="Введите значение или формулу: =SUM(A1:A10), =A1+B1, =AVERAGE(C2:C20)">
+        </div>
+
+        <div id="hot-container"></div>
+    </div>
+
+    <script>
+        const API_URL = "http://127.0.0.1:8000";
+        let token = null;
+        let username = null;
+        let hot = null;
+        let currentSheet = null;
+        let availableSheets = [];
+        
+        // Переменные для логики
+        let selectedCell = { row: null, col: null };
+        let debounceTimer = null;     // Таймер ожидания
+        let pendingUpdates = [];      // Накопитель изменений
+
+        // === АВТОРИЗАЦИЯ ===
+        async function login() {
+            const user = document.getElementById('username').value;
+            const pass = document.getElementById('password').value;
+            const errorMsg = document.getElementById('login-error');
+
+            if (!user || !pass) {
+                errorMsg.textContent = 'Заполните все поля';
+                errorMsg.style.display = 'block';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/api/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: user, password: pass })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    token = data.access_token;
+                    username = data.username;
+                    
+                    document.getElementById('login-screen').style.display = 'none';
+                    document.getElementById('sheet-selector').style.display = 'flex';
+                } else {
+                    errorMsg.textContent = 'Неверный логин или пароль';
+                    errorMsg.style.display = 'block';
+                }
+            } catch (error) {
+                errorMsg.textContent = 'Ошибка сети';
+                errorMsg.style.display = 'block';
+            }
+        }
+
+        // === ВЫБОР ТАБЛИЦЫ ===
+        async function setSheet() {
+            const url = document.getElementById('sheet-url').value;
+            const errorMsg = document.getElementById('sheet-error');
+
+            if (!url) {
+                errorMsg.textContent = 'Введите ссылку на таблицу';
+                errorMsg.style.display = 'block';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/api/set-sheet`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ url: url })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    availableSheets = data.sheets;
+                    
+                    document.getElementById('file-name').textContent = data.title;
+                    document.getElementById('sheet-selector').style.display = 'none';
+                    document.getElementById('main-app').style.display = 'flex';
+                    
+                    renderSheetTabs();
+                    loadData(data.sheets[0]);
+                } else {
+                    const error = await response.json();
+                    errorMsg.textContent = error.detail || 'Ошибка доступа';
+                    errorMsg.style.display = 'block';
+                }
+            } catch (error) {
+                errorMsg.textContent = 'Ошибка сети';
+                errorMsg.style.display = 'block';
+            }
+        }
+
+        // === ОТРИСОВКА ВКЛАДОК ===
+        function renderSheetTabs() {
+            const container = document.getElementById('sheet-tabs');
+            const selector = document.getElementById('sheet-dropdown'); // Исправленный ID
+            
+            container.innerHTML = '';
+            selector.innerHTML = '<option value="">Выберите лист...</option>';
+            
+            availableSheets.forEach((sheetName, idx) => {
+                const tab = document.createElement('div');
+                tab.className = 'sheet-tab' + (idx === 0 ? ' active' : '');
+                tab.textContent = sheetName;
+                tab.onclick = () => selectSheet(sheetName);
+                container.appendChild(tab);
+                
+                const option = document.createElement('option');
+                option.value = sheetName;
+                option.textContent = sheetName;
+                if (idx === 0) option.selected = true;
+                selector.appendChild(option);
+            });
+        }
+
+        async function selectSheet(sheetName) {
+            try {
+                await fetch(`${API_URL}/api/select-sheet`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ sheet_name: sheetName })
+                });
+                
+                loadData(sheetName);
+                
+                document.querySelectorAll('.sheet-tab').forEach(tab => {
+                    tab.classList.toggle('active', tab.textContent === sheetName);
+                });
+                
+                const selector = document.getElementById('sheet-dropdown');
+                selector.value = sheetName;
+            } catch (error) {
+                console.error(error);
+            }
+        }
+        
+        function changeSheet() {
+            const selector = document.getElementById('sheet-dropdown');
+            const sheetName = selector.value;
+            if (sheetName) {
+                selectSheet(sheetName);
+            }
+        }
+
+        // === ЗАГРУЗКА ДАННЫХ ===
+        async function loadData(sheetName = null) {
+            setSaving('Загрузка...');
+            currentSheet = sheetName;
+            // Очищаем очередь при смене листа, чтобы не отправить данные в новую таблицу
+            pendingUpdates = [];
+            clearTimeout(debounceTimer);
+
+            try {
+                const url = sheetName 
+                    ? `${API_URL}/api/data?sheet_name=${encodeURIComponent(sheetName)}`
+                    : `${API_URL}/api/data`;
+
+                const response = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                const json = await response.json();
+                const tableData = json.data && json.data.length > 0 ? json.data : [['']];
+                
+                if (hot) {
+                    hot.loadData(tableData);
+                    hot.render();
+                } else {
+                    renderTable(tableData);
+                }
+
+                setSaved();
+            } catch (error) {
+                console.error('Ошибка загрузки:', error);
+                setError();
+                if (!hot) renderTable([['']]);
+            }
+        }
+
+        // === РЕНДЕР ТАБЛИЦЫ ===
+        function renderTable(data) {
+            const container = document.getElementById('hot-container');
+            const formulaInput = document.getElementById('formula-input');
+
+            container.style.display = 'block';
+            container.style.width = '100%';
+            container.style.height = 'calc(100vh - 200px)';
+
+            hot = new Handsontable(container, {
+                data: data,
+                startRows: 100,
+                startCols: 26,
+                minSpareRows: 10,
+                minSpareCols: 5,
+                rowHeaders: true,
+                colHeaders: true,
+                licenseKey: 'non-commercial-and-evaluation',
+                width: '100%',
+                height: '100%',
+                manualColumnResize: true,
+                manualRowResize: true,
+                contextMenu: true,
+                rowHeights: 23,
+                colWidths: 100,
+                renderAllRows: false,
+                
+                afterSelection: (r, c) => {
+                    selectedCell.row = r;
+                    selectedCell.col = c;
+                    const val = hot.getDataAtCell(r, c);
+                    formulaInput.value = val === null ? '' : val;
+                },
+
+                // !!! DEBOUNCE ЛОГИКА !!!
+                afterChange: function(changes, source) {
+                    if (source === 'loadData') return;
+                    if (changes) {
+                        setSaving('Ввод...'); // Показываем пользователю, что мы видим изменения
+                        
+                        changes.forEach(([row, prop, oldValue, newValue]) => {
+                            if (oldValue !== newValue) {
+                                // Добавляем в очередь
+                                pendingUpdates.push({
+                                    row: row,
+                                    col: prop,
+                                    newValue: newValue === null ? "" : newValue.toString()
+                                });
+                            }
+                        });
+
+                        // Сбрасываем старый таймер
+                        if (debounceTimer) clearTimeout(debounceTimer);
+
+                        // Заводим новый таймер на 2 секунды (2000 мс)
+                        debounceTimer = setTimeout(() => {
+                            if (pendingUpdates.length > 0) {
+                                // Отправляем копию массива
+                                sendBatch([...pendingUpdates]);
+                                // Очищаем массив
+                                pendingUpdates = [];
+                            }
+                        }, 2000);
+                    }
+                }
+            });
+
+            formulaInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && selectedCell.row !== null && selectedCell.col !== null) {
+                    const newValue = formulaInput.value;
+                    hot.setDataAtCell(selectedCell.row, selectedCell.col, newValue);
+                }
+            });
+
+            setTimeout(() => hot.render(), 100);
+        }
+
+        // === ОТПРАВКА ИЗМЕНЕНИЙ ===
+        async function sendBatch(updates) {
+            setSaving('Сохранение...');
+            
+            try {
+                const url = currentSheet
+                    ? `${API_URL}/api/batch-update?sheet_name=${encodeURIComponent(currentSheet)}`
+                    : `${API_URL}/api/batch-update`;
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ updates: updates })
+                });
+
+                if (response.ok) {
+                    setSaved();
+                } else {
+                    setError();
+                    console.error('Server error:', await response.text());
+                }
+            } catch (error) {
+                setError();
+                console.error('Network error:', error);
+            }
+        }
+
+        // ... Остальные функции без изменений ...
+        function refreshData() { loadData(currentSheet); }
+
+        function logout() {
+            token = null;
+            username = null;
+            hot = null;
+            document.getElementById('main-app').style.display = 'none';
+            document.getElementById('login-screen').style.display = 'flex';
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
+        }
+
+        function setSaving(text) {
+            document.getElementById('status-text').innerHTML = 
+                `<span class="material-icons spinning">sync</span><span>${text}</span>`;
+        }
+
+        function setSaved() {
+            document.getElementById('status-text').innerHTML = 
+                '<span class="material-icons">cloud_done</span><span>Сохранено</span>';
+        }
+
+        function setError() {
+            document.getElementById('status-text').innerHTML = 
+                '<span class="material-icons" style="color:#e74c3c">error</span><span>Ошибка</span>';
+        }
+
+        document.getElementById('password')?.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') login();
+        });
+        
+        document.getElementById('sheet-url')?.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') setSheet();
+        });
+
+        // === СКАЧИВАНИЕ EXCEL ===
+        function downloadExcel() {
+            if (!hot) return;
+
+            // 1. Берем данные из таблицы (включая заголовки, если нужно, но hot.getData() берет только тело)
+            const data = hot.getData();
+            
+            // Если нужны заголовки столбцов (A, B, C...), раскомментируйте код ниже:
+            // const headers = hot.getColHeader();
+            // data.unshift(headers);
+
+            // 2. Создаем рабочую книгу и лист
+            const ws = XLSX.utils.aoa_to_sheet(data); // aoa = array of arrays
+            const wb = XLSX.utils.book_new();
+            
+            // 3. Добавляем лист в книгу
+            // Берем имя файла из заголовка или ставим дефолтное
+            const fileName = (document.getElementById('file-name').textContent || 'Table').trim();
+            XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+
+            // 4. Скачиваем файл
+            XLSX.writeFile(wb, `${fileName}.xlsx`);
+        }
+    </script>
+</body>
+</html>
