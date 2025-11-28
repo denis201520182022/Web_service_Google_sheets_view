@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional, Dict
 from datetime import timedelta
+from fastapi.responses import FileResponse
 
 from config import (
     SERVICE_ACCOUNT_FILE, 
@@ -74,8 +75,8 @@ def extract_spreadsheet_id(url: str) -> Optional[str]:
 # === API ENDPOINTS ===
 
 @app.get("/")
-def root():
-    return {"service": "Google Sheets Proxy", "status": "active", "version": "2.1"}
+def read_root():
+    return FileResponse("index.html")
 
 @app.post("/api/login")
 def login(credentials: LoginRequest):

@@ -1,3 +1,9 @@
+source venv/bin/activate
+systemctl start zabota_tables
+systemctl status zabota_tables
+journalctl -u zabota_tables -f
+
+
 # 🚀 SheetPro - Прокси для Google Таблиц
 
 Безопасный веб-сервис для работы с Google Sheets через собственный интерфейс.
