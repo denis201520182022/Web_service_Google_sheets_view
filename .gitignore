@@ -24,6 +24,7 @@ wheels/
 venv/
 ENV/
 env/
+.venv
 
 # IDE
 .vscode/
@@ -31,40 +32,31 @@ env/
 *.swp
 *.swo
 *~
+.DS_Store
+
+# Sensitive Data
+.env
+*.env
+!.env.example
+service_account.json
+client_secret.json
+credentials.json
+*.key
+*.pem
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
 
 # Logs
 *.log
 logs/
 
-# Environment Variables
-.env
-.env.local
-.env.production
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
 
-# Google Credentials (КРИТИЧНО!)
-service_account.json
-credentials.json
-client_secret.json
-
-# OS
-.DS_Store
-Thumbs.db
-Desktop.ini
-
-# Temporary files
-*.tmp
-*.temp
-.cache/
-
-# Database (если добавишь)
-*.db
-*.sqlite
-*.sqlite3
-
-# Backup files
-*.backup
-*.bak
-
-# Docker
-.dockerignore
-docker-compose.override.yml
+# Alembic
+# Не игнорируем папку alembic, но мож

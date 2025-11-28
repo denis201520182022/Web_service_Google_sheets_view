@@ -121,7 +121,9 @@
             padding: 40px;
             border-radius: 16px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            width: 500px;
+            width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
         }
 
         .selector-box h2 {
@@ -201,7 +203,10 @@
             background: rgba(255,255,255,0.2);
             border-radius: 6px;
         }
-
+        /* Добавить к стилям индикатора */
+        .lock-indicator.success {
+            background: #27ae60; /* Зеленый цвет */
+        }
         .btn-logout {
             background: rgba(255,255,255,0.2);
             color: white;
@@ -251,7 +256,6 @@
             font-size: 18px;
         }
         
-        /* Стили для селектора листов */
         #sheet-dropdown {
             padding: 8px 12px;
             font-size: 13px;
@@ -305,6 +309,11 @@
             border-color: #667eea;
             box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
         }
+                /* Добавьте это в блок style */
+        .locked-cell {
+            background-color: #ffebee !important; /* Светло-красный фон */
+            color: #c0392b !important;            /* Темно-красный текст */
+        }
 
         #hot-container {
             flex-grow: 1;
@@ -317,7 +326,6 @@
             height: calc(100vh - 200px);
         }
 
-        /* Стили таблицы */
         .handsontable th {
             background: #f8f9fa !important;
             color: #666 !important;
@@ -341,11 +349,71 @@
         .spinning {
             animation: spin 1s linear infinite;
         }
+        
+        /* Добавляем стили для истории таблиц */
+        .sheet-history {
+            margin-top: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .sheet-item {
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+        }
+        
+        .sheet-item:hover {
+            background: #e9ecef;
+            border-color: #667eea;
+        }
+        
+        .sheet-item-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+        
+        .sheet-item-meta {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        /* Стили для блокировок */
+        .admin-panel {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .lock-indicator {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #e74c3c;
+            color: white;
+            padding: 10px 16px;
+            border-radius: 8px;
+            display: none;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
+        }
+        
+        .lock-indicator.show {
+            display: flex;
+        }
     </style>
 </head>
 <body>
 
-    <!-- ЭКРАН АВТОРИЗАЦИИ -->
+    <!-- LOGIN SCREEN -->
     <div id="login-screen">
         <div class="login-box">
             <h1>🔐 Zabota Tables</h1>
@@ -366,26 +434,29 @@
         </div>
     </div>
 
-    <!-- ВЫБОР ТАБЛИЦЫ -->
-    <div id="sheet-selector">
+    <!-- SHEET SELECTOR -->
+    <div id="sheet-selector" style="display:none;">
         <div class="selector-box">
             <h2>Выберите таблицу</h2>
             
             <div class="input-group">
-                <label>Ссылка на Google Таблицу</label>
+                <label>Ссылка на Таблицу</label>
                 <input 
                     type="text" 
                     id="sheet-url" 
-                    placeholder="https://docs.google.com/spreadsheets/d/...">
+                    placeholder="">
             </div>
             
             <button class="btn-primary" onclick="setSheet()">Подключить</button>
+            
+            <div class="sheet-history" id="sheet-history"></div>
+            
             <div class="error-msg" id="sheet-error"></div>
         </div>
     </div>
 
-    <!-- ГЛАВНОЕ ПРИЛОЖЕНИЕ -->
-    <div id="main-app">
+    <!-- MAIN APP -->
+    <div id="main-app" style="display:none;">
         <div class="app-header">
             <div class="logo">
                 <span class="material-icons">table_chart</span>
@@ -417,31 +488,52 @@
 
             <div class="separator"></div>
             
-            <select id="sheet-dropdown" class="tool-btn" onchange="changeSheet()" style="min-width: 150px;">
+            <select id="sheet-dropdown" class="tool-btn" onchange="changeSheet()">
                 <option value="">Выберите лист...</option>
             </select>
+            
+            <div id="admin-tools" style="display:none;">
+                <div class="separator"></div>
+                <button class="tool-btn" onclick="showLockDialog()">
+                    <span class="material-icons">lock</span>
+                    Блокировать диапазон
+                </button>
+                            <!-- НОВАЯ КНОПКА -->
+                <button class="tool-btn" onclick="unlockSelectedRange()">
+                    <span class="material-icons">lock_open</span>
+                    Разблокировать диапазон
+                </button>
+            </div>
         </div>
 
         <div class="formula-bar">
             <span class="fx-label">fx</span>
-            <input type="text" class="formula-input" id="formula-input" placeholder="Введите значение или формулу: =SUM(A1:A10), =A1+B1, =AVERAGE(C2:C20)">
+            <input type="text" class="formula-input" id="formula-input" placeholder="Формула или значение">
         </div>
 
         <div id="hot-container"></div>
+        
+        <div class="lock-indicator" id="lock-indicator">
+            <span class="material-icons">lock</span>
+            <span>Эта ячейка заблокирована</span>
+        </div>
     </div>
 
     <script>
         const API_URL = "";
         let token = null;
         let username = null;
+        let isAdmin = false;
         let hot = null;
+        let activeLocks = []; // Храним список блокировок здесь
         let currentSheet = null;
+        let currentSpreadsheetId = null;
         let availableSheets = [];
+        let formulasMap = {}; // Карта формул: "row,col" -> "=SUM(A1:A10)"
         
-        // Переменные для логики
         let selectedCell = { row: null, col: null };
-        let debounceTimer = null;     // Таймер ожидания
-        let pendingUpdates = [];      // Накопитель изменений
+        let debounceTimer = null;
+        let pendingUpdates = [];
 
         // === АВТОРИЗАЦИЯ ===
         async function login() {
@@ -466,9 +558,18 @@
                     const data = await response.json();
                     token = data.access_token;
                     username = data.username;
+                    isAdmin = data.is_admin;
+                    
+                    console.log(`✅ Вход выполнен: ${username} (admin=${isAdmin})`);
                     
                     document.getElementById('login-screen').style.display = 'none';
                     document.getElementById('sheet-selector').style.display = 'flex';
+                    
+                    if (isAdmin) {
+                        document.getElementById('admin-tools').style.display = 'flex';
+                    }
+                    
+                    loadSheetHistory();
                 } else {
                     errorMsg.textContent = 'Неверный логин или пароль';
                     errorMsg.style.display = 'block';
@@ -479,9 +580,51 @@
             }
         }
 
+        // === ЗАГРУЗКА ИСТОРИИ ТАБЛИЦ ===
+        async function loadSheetHistory() {
+            try {
+                const response = await fetch(`${API_URL}/api/my-sheets`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    const container = document.getElementById('sheet-history');
+                    
+                    if (data.sheets.length === 0) {
+                        container.innerHTML = '<p style="text-align:center;color:#666;margin-top:20px;">История пуста</p>';
+                        return;
+                    }
+                    
+                    container.innerHTML = '<h3 style="margin-bottom:12px;">Недавние таблицы:</h3>';
+                    
+                    data.sheets.forEach(sheet => {
+                        const item = document.createElement('div');
+                        item.className = 'sheet-item';
+                        item.innerHTML = `
+                            <div class="sheet-item-title">${sheet.title}</div>
+                            <div class="sheet-item-meta">
+                                Открыто: ${sheet.access_count} раз | 
+                                Последний доступ: ${new Date(sheet.last_accessed).toLocaleDateString('ru')}
+                            </div>
+                        `;
+                        item.onclick = () => {
+                            // Сразу вызываем функцию с URL, минуя подстановку в инпут
+                            setSheet(sheet.url);
+                        };
+                        container.appendChild(item);
+                    });
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки истории:', error);
+            }
+        }
+
         // === ВЫБОР ТАБЛИЦЫ ===
-        async function setSheet() {
-            const url = document.getElementById('sheet-url').value;
+        async function setSheet(directUrl = null) {
+            // Если передали прямую ссылку (из истории), берем её. 
+            // Если нет - берем из поля ввода.
+            const url = directUrl || document.getElementById('sheet-url').value;
             const errorMsg = document.getElementById('sheet-error');
 
             if (!url) {
@@ -503,6 +646,7 @@
                 if (response.ok) {
                     const data = await response.json();
                     availableSheets = data.sheets;
+                    currentSpreadsheetId = data.spreadsheet_id;
                     
                     document.getElementById('file-name').textContent = data.title;
                     document.getElementById('sheet-selector').style.display = 'none';
@@ -521,10 +665,407 @@
             }
         }
 
-        // === ОТРИСОВКА ВКЛАДОК ===
+        async function unlockSelectedRange() {
+            const selection = hot.getSelected();
+            if (!selection) {
+                alert('Выберите заблокированную ячейку');
+                return;
+            }
+            const [r1, c1] = selection[0];
+            
+            // Ищем блокировку
+            const targetLock = activeLocks.find(lock => isCellInLock(r1, c1, lock.range));
+            
+            if (!targetLock) {
+                alert('Эта ячейка не заблокирована или вы не попали в диапазон');
+                return;
+            }
+
+            if (!confirm(`Снять блокировку с диапазона ${targetLock.range}?`)) return;
+
+            try {
+                const response = await fetch(`${API_URL}/api/admin/unlock-range/${targetLock.id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    // 1. Уведомление
+                    showNotification(`✅ Диапазон ${targetLock.range} разблокирован`, 'success');
+                    
+                    // 2. Убираем из локального списка (чтобы глаз не резало, пока грузится)
+                    activeLocks = activeLocks.filter(lock => lock.id !== targetLock.id);
+                    hot.render();
+
+                    // 3. ГЛАВНОЕ: Вызываем полную перезагрузку, как кнопка "Обновить"
+                    refreshData();
+                    
+                } else {
+                    showNotification('Ошибка при удалении', 'error');
+                }
+            } catch (e) {
+                console.error(e);
+                showNotification('Ошибка сети', 'error');
+            }
+        }
+
+        // === ЗАГРУЗКА ДАННЫХ С ФОРМУЛАМИ ===
+        async function loadData(sheetName = null) {
+            setSaving('Загрузка...');
+            currentSheet = sheetName;
+            pendingUpdates = [];
+            clearTimeout(debounceTimer);
+
+            try {
+                const url = sheetName 
+                    ? `${API_URL}/api/data?sheet_name=${encodeURIComponent(sheetName)}`
+                    : `${API_URL}/api/data`;
+
+                const response = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                const json = await response.json();
+                const tableData = json.data && json.data.length > 0 ? json.data : [['']];
+                formulasMap = json.formulas || {};
+                
+                console.log('📥 Загружено формул:', Object.keys(formulasMap).length);
+                
+                if (hot) {
+                    hot.loadData(tableData);
+                    hot.render();
+                } else {
+                    renderTable(tableData);
+                }
+
+                setSaved();
+                if (isAdmin) loadLocks();
+            } catch (error) {
+                console.error('❌ Ошибка загрузки:', error);
+                setError();
+                if (!hot) renderTable([['']]);
+            }
+        }
+
+        // === РЕНДЕР ТАБЛИЦЫ ===
+        function renderTable(data) {
+            const container = document.getElementById('hot-container');
+            const formulaInput = document.getElementById('formula-input');
+
+            hot = new Handsontable(container, {
+                data: data,
+                startRows: 100,
+                startCols: 26,
+                minSpareRows: 10,
+                minSpareCols: 5,
+                rowHeaders: true,
+                colHeaders: true,
+                licenseKey: 'non-commercial-and-evaluation',
+                width: '100%',
+                height: '100%',
+                outsideClickDeselects: false,
+                cells: function(row, col) {
+                    const cellProps = {};
+                    
+                    // Если есть активные блокировки, проверяем каждую
+                    if (activeLocks.length > 0) {
+                        for (let lock of activeLocks) {
+                            if (isCellInLock(row, col, lock.range)) {
+                                cellProps.className = 'locked-cell'; // Применяем CSS класс
+                                break; 
+                            }
+                        }
+                    }
+                    return cellProps;
+                },
+                manualColumnResize: true,
+                manualRowResize: true,
+                contextMenu: true,
+                
+                afterSelection: (r, c) => {
+                    selectedCell.row = r;
+                    selectedCell.col = c;
+                    
+                    // КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Показываем формулу, если есть
+                    const formulaKey = `${r},${c}`;
+                    if (formulasMap[formulaKey]) {
+                        formulaInput.value = formulasMap[formulaKey];
+                        console.log(`📐 Формула в ячейке [${r},${c}]: ${formulasMap[formulaKey]}`);
+                    } else {
+                        const val = hot.getDataAtCell(r, c);
+                        formulaInput.value = val === null ? '' : val;
+                    }
+                },
+                
+                afterChange: function(changes, source) {
+                    // ВАЖНО: добавляем проверку источника 'revert_lock', чтобы не зациклить
+                    if (source === 'loadData' || source === 'revert_lock') return;
+                    
+                    if (changes) {
+                        setSaving('Ввод...');
+                        
+                        changes.forEach(([row, prop, oldValue, newValue]) => {
+                            if (oldValue !== newValue) {
+                                // Обновляем карту формул (логика остается прежней)
+                                const formulaKey = `${row},${prop}`;
+                                if (newValue && newValue.toString().startsWith('=')) {
+                                    formulasMap[formulaKey] = newValue.toString();
+                                } else if (formulasMap[formulaKey]) {
+                                    delete formulasMap[formulaKey];
+                                }
+                                
+                                // === ИЗМЕНЕНИЕ ЗДЕСЬ: Сохраняем oldValue ===
+                                pendingUpdates.push({
+                                    row: row,
+                                    col: prop,
+                                    oldValue: oldValue, // <--- Добавили это поле
+                                    newValue: newValue === null ? "" : newValue.toString()
+                                });
+                            }
+                        });
+
+                        if (debounceTimer) clearTimeout(debounceTimer);
+
+                        debounceTimer = setTimeout(() => {
+                            if (pendingUpdates.length > 0) {
+                                // Передаем копию массива
+                                sendBatch([...pendingUpdates]);
+                                pendingUpdates = [];
+                            }
+                        }, 1000); // Можно уменьшить время до 1с для отзывчивости
+                    }
+                }
+            });
+
+            formulaInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && selectedCell.row !== null && selectedCell.col !== null) {
+                    const newValue = formulaInput.value;
+                    hot.setDataAtCell(selectedCell.row, selectedCell.col, newValue);
+                }
+            });
+
+            setTimeout(() => hot.render(), 100);
+        }
+
+        // === ОТПРАВКА ИЗМЕНЕНИЙ ===
+        async function sendBatch(updates) {
+            setSaving('Сохранение...');
+            
+            try {
+                const url = currentSheet
+                    ? `${API_URL}/api/batch-update?sheet_name=${encodeURIComponent(currentSheet)}`
+                    : `${API_URL}/api/batch-update`;
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ updates: updates })
+                });
+
+                if (response.ok) {
+                    console.log(`✅ Сохранено ${updates.length} изменений`);
+                    setSaved();
+                } 
+                else if (response.status === 403) {
+                    // === ЛОГИКА ОТКАТА ИЗМЕНЕНИЙ ===
+                    const error = await response.json();
+                    showLockIndicator();
+                    setError();
+                    
+                    // Проходим по всем неудавшимся изменениям и возвращаем oldValue
+                    updates.forEach(item => {
+                        // 'revert_lock' — это метка, которую мы проверяем в afterChange,
+                        // чтобы не отправлять этот откат снова на сервер
+                        hot.setDataAtCell(item.row, item.col, item.oldValue, 'revert_lock');
+                    });
+
+                    // Можно не показывать alert, а ограничиться красивым индикатором
+                    // alert(error.detail); 
+                } 
+                else {
+                    setError();
+                    console.error('Server error:', await response.text());
+                }
+            } catch (error) {
+                setError();
+                console.error('Network error:', error);
+            }
+        }
+        
+        // Парсит "A1" или "B2" в {row, col}
+        function parseCell(cellStr) {
+            const match = cellStr.match(/([A-Z]+)([0-9]+)/);
+            if (!match) return null;
+            
+            const colStr = match[1];
+            const rowStr = match[2];
+            
+            let col = 0;
+            for (let i = 0; i < colStr.length; i++) {
+                col = col * 26 + (colStr.charCodeAt(i) - 64);
+            }
+            
+            return {
+                row: parseInt(rowStr) - 1,
+                col: col - 1
+            };
+        }
+
+        // Проверяет, находится ли ячейка (r, c) внутри диапазона "A1:B2"
+        function isCellInLock(r, c, rangeStr) {
+            const parts = rangeStr.split(':');
+            const start = parseCell(parts[0]);
+            const end = parts.length > 1 ? parseCell(parts[1]) : start;
+            
+            if (!start || !end) return false;
+            
+            return r >= start.row && r <= end.row && 
+                c >= start.col && c <= end.col;
+        }
+
+        async function loadLocks() {
+            if (!isAdmin || !currentSpreadsheetId) return;
+
+            try {
+                const url = `${API_URL}/api/admin/locked-ranges?spreadsheet_id=${currentSpreadsheetId}&sheet_name=${currentSheet}`;
+                const response = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    activeLocks = data.locks; // Обновляем массив
+                    
+                    // ПРИНУДИТЕЛЬНАЯ ПЕРЕРИСОВКА
+                    if (hot) {
+                        hot.render(); 
+                    }
+                    console.log('🔒 Блокировки обновлены:', activeLocks.length);
+                }
+            } catch (e) {
+                console.error('Ошибка загрузки блокировок', e);
+            }
+        }
+
+        // === ИНДИКАТОР БЛОКИРОВКИ ===
+        // Универсальная функция уведомлений
+        function showNotification(text, type = 'error') {
+            const indicator = document.getElementById('lock-indicator');
+            const span = indicator.querySelector('span:last-child');
+            const icon = indicator.querySelector('.material-icons');
+            
+            span.textContent = text;
+            
+            // Сброс классов
+            indicator.className = 'lock-indicator';
+            
+            if (type === 'success') {
+                indicator.classList.add('success');
+                icon.textContent = 'check_circle'; // Иконка галочки
+            } else {
+                // error
+                icon.textContent = 'lock'; // Иконка замка
+            }
+            
+            indicator.classList.add('show');
+            
+            // Скрываем через 3 секунды
+            setTimeout(() => {
+                indicator.classList.remove('show');
+            }, 3000);
+        }
+
+        // Старая функция теперь просто вызывает новую (для совместимости)
+        function showLockIndicator() {
+            showNotification('Эта ячейка заблокирована', 'error');
+        }
+        // Функция для конвертации индекса колонки в букву (0 -> A, 26 -> AA)
+        function getColumnLabel(index) {
+            let label = '';
+            while (index >= 0) {
+                label = String.fromCharCode(65 + (index % 26)) + label;
+                index = Math.floor(index / 26) - 1;
+            }
+            return label;
+        }
+        // === БЛОКИРОВКА ДИАПАЗОНА (для админа) ===
+        function showLockDialog() {
+            // 1. Получаем выделение из таблицы
+            const selection = hot.getSelected();
+            
+            if (!selection || selection.length === 0) {
+                alert('Сначала выделите ячейки, которые хотите заблокировать!');
+                return;
+            }
+
+            // selection[0] возвращает массив: [startRow, startCol, endRow, endCol]
+            // Handsontable может возвращать координаты в обратном порядке (если выделяли снизу вверх),
+            // поэтому используем Math.min и Math.max для нормализации.
+            const [r1, c1, r2, c2] = selection[0];
+            
+            const startRow = Math.min(r1, r2);
+            const endRow = Math.max(r1, r2);
+            const startCol = Math.min(c1, c2);
+            const endCol = Math.max(c1, c2);
+
+            // 2. Генерируем нотацию A1:B2
+            const startLabel = `${getColumnLabel(startCol)}${startRow + 1}`;
+            const endLabel = `${getColumnLabel(endCol)}${endRow + 1}`;
+            
+            // Если выделена одна ячейка, будет просто "A1", если диапазон - "A1:B2"
+            const rangeNotation = (startLabel === endLabel) 
+                ? startLabel 
+                : `${startLabel}:${endLabel}`;
+
+            // 3. Спрашиваем только причину
+            const reason = prompt(`Блокировка диапазона: ${rangeNotation}\n\nУкажите причину (необязательно):`);
+            
+            // Если нажали "Отмена" (null), ничего не делаем
+            if (reason === null) return;
+            
+            // 4. Вызываем функцию блокировки
+            lockRange(rangeNotation, reason);
+        }
+
+        async function lockRange(range, reason) {
+            try {
+                const response = await fetch(`${API_URL}/api/admin/lock-range`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        spreadsheet_id: currentSpreadsheetId,
+                        sheet_name: currentSheet,
+                        range_notation: range,
+                        reason: reason
+                    })
+                });
+                
+                if (response.ok) {
+                    // === ИЗМЕНЕНИЕ: Красивое уведомление вместо alert ===
+                    showNotification(`✅ Диапазон ${range} заблокирован`, 'success');
+                    
+                    // Обновляем список, чтобы ячейки покраснели
+                    await loadLocks(); 
+                } else {
+                    const error = await response.json();
+                    showNotification(`❌ ${error.detail}`, 'error'); // Используем красный тост для ошибки
+                }
+            } catch (error) {
+                showNotification('Ошибка блокировки', 'error');
+                console.error(error);
+            }
+        }
+
+        // === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===
         function renderSheetTabs() {
             const container = document.getElementById('sheet-tabs');
-            const selector = document.getElementById('sheet-dropdown'); // Исправленный ID
+            const selector = document.getElementById('sheet-dropdown');
             
             container.innerHTML = '';
             selector.innerHTML = '<option value="">Выберите лист...</option>';
@@ -561,8 +1102,7 @@
                     tab.classList.toggle('active', tab.textContent === sheetName);
                 });
                 
-                const selector = document.getElementById('sheet-dropdown');
-                selector.value = sheetName;
+                document.getElementById('sheet-dropdown').value = sheetName;
             } catch (error) {
                 console.error(error);
             }
@@ -571,159 +1111,16 @@
         function changeSheet() {
             const selector = document.getElementById('sheet-dropdown');
             const sheetName = selector.value;
-            if (sheetName) {
-                selectSheet(sheetName);
-            }
+            if (sheetName) selectSheet(sheetName);
         }
 
-        // === ЗАГРУЗКА ДАННЫХ ===
-        async function loadData(sheetName = null) {
-            setSaving('Загрузка...');
-            currentSheet = sheetName;
-            // Очищаем очередь при смене листа, чтобы не отправить данные в новую таблицу
-            pendingUpdates = [];
-            clearTimeout(debounceTimer);
-
-            try {
-                const url = sheetName 
-                    ? `${API_URL}/api/data?sheet_name=${encodeURIComponent(sheetName)}`
-                    : `${API_URL}/api/data`;
-
-                const response = await fetch(url, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-
-                const json = await response.json();
-                const tableData = json.data && json.data.length > 0 ? json.data : [['']];
-                
-                if (hot) {
-                    hot.loadData(tableData);
-                    hot.render();
-                } else {
-                    renderTable(tableData);
-                }
-
-                setSaved();
-            } catch (error) {
-                console.error('Ошибка загрузки:', error);
-                setError();
-                if (!hot) renderTable([['']]);
-            }
-        }
-
-        // === РЕНДЕР ТАБЛИЦЫ ===
-        function renderTable(data) {
-            const container = document.getElementById('hot-container');
-            const formulaInput = document.getElementById('formula-input');
-
-            container.style.display = 'block';
-            container.style.width = '100%';
-            container.style.height = 'calc(100vh - 200px)';
-
-            hot = new Handsontable(container, {
-                data: data,
-                startRows: 100,
-                startCols: 26,
-                minSpareRows: 10,
-                minSpareCols: 5,
-                rowHeaders: true,
-                colHeaders: true,
-                licenseKey: 'non-commercial-and-evaluation',
-                width: '100%',
-                height: '100%',
-                manualColumnResize: true,
-                manualRowResize: true,
-                contextMenu: true,
-                rowHeights: 23,
-                colWidths: 100,
-                renderAllRows: false,
-                
-                afterSelection: (r, c) => {
-                    selectedCell.row = r;
-                    selectedCell.col = c;
-                    const val = hot.getDataAtCell(r, c);
-                    formulaInput.value = val === null ? '' : val;
-                },
-
-                // !!! DEBOUNCE ЛОГИКА !!!
-                afterChange: function(changes, source) {
-                    if (source === 'loadData') return;
-                    if (changes) {
-                        setSaving('Ввод...'); // Показываем пользователю, что мы видим изменения
-                        
-                        changes.forEach(([row, prop, oldValue, newValue]) => {
-                            if (oldValue !== newValue) {
-                                // Добавляем в очередь
-                                pendingUpdates.push({
-                                    row: row,
-                                    col: prop,
-                                    newValue: newValue === null ? "" : newValue.toString()
-                                });
-                            }
-                        });
-
-                        // Сбрасываем старый таймер
-                        if (debounceTimer) clearTimeout(debounceTimer);
-
-                        // Заводим новый таймер на 2 секунды (2000 мс)
-                        debounceTimer = setTimeout(() => {
-                            if (pendingUpdates.length > 0) {
-                                // Отправляем копию массива
-                                sendBatch([...pendingUpdates]);
-                                // Очищаем массив
-                                pendingUpdates = [];
-                            }
-                        }, 2000);
-                    }
-                }
-            });
-
-            formulaInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter' && selectedCell.row !== null && selectedCell.col !== null) {
-                    const newValue = formulaInput.value;
-                    hot.setDataAtCell(selectedCell.row, selectedCell.col, newValue);
-                }
-            });
-
-            setTimeout(() => hot.render(), 100);
-        }
-
-        // === ОТПРАВКА ИЗМЕНЕНИЙ ===
-        async function sendBatch(updates) {
-            setSaving('Сохранение...');
-            
-            try {
-                const url = currentSheet
-                    ? `${API_URL}/api/batch-update?sheet_name=${encodeURIComponent(currentSheet)}`
-                    : `${API_URL}/api/batch-update`;
-
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({ updates: updates })
-                });
-
-                if (response.ok) {
-                    setSaved();
-                } else {
-                    setError();
-                    console.error('Server error:', await response.text());
-                }
-            } catch (error) {
-                setError();
-                console.error('Network error:', error);
-            }
-        }
-
-        // ... Остальные функции без изменений ...
         function refreshData() { loadData(currentSheet); }
 
         function logout() {
+            console.log('👋 Выход из системы');
             token = null;
             username = null;
+            isAdmin = false;
             hot = null;
             document.getElementById('main-app').style.display = 'none';
             document.getElementById('login-screen').style.display = 'flex';
@@ -746,6 +1143,17 @@
                 '<span class="material-icons" style="color:#e74c3c">error</span><span>Ошибка</span>';
         }
 
+        function downloadExcel() {
+            if (!hot) return;
+            const data = hot.getData();
+            const ws = XLSX.utils.aoa_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            const fileName = (document.getElementById('file-name').textContent || 'Table').trim();
+            XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+            XLSX.writeFile(wb, `${fileName}.xlsx`);
+            console.log(`💾 Экспорт в Excel: ${fileName}.xlsx`);
+        }
+
         document.getElementById('password')?.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') login();
         });
@@ -753,30 +1161,6 @@
         document.getElementById('sheet-url')?.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') setSheet();
         });
-
-        // === СКАЧИВАНИЕ EXCEL ===
-        function downloadExcel() {
-            if (!hot) return;
-
-            // 1. Берем данные из таблицы (включая заголовки, если нужно, но hot.getData() берет только тело)
-            const data = hot.getData();
-            
-            // Если нужны заголовки столбцов (A, B, C...), раскомментируйте код ниже:
-            // const headers = hot.getColHeader();
-            // data.unshift(headers);
-
-            // 2. Создаем рабочую книгу и лист
-            const ws = XLSX.utils.aoa_to_sheet(data); // aoa = array of arrays
-            const wb = XLSX.utils.book_new();
-            
-            // 3. Добавляем лист в книгу
-            // Берем имя файла из заголовка или ставим дефолтное
-            const fileName = (document.getElementById('file-name').textContent || 'Table').trim();
-            XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
-
-            // 4. Скачиваем файл
-            XLSX.writeFile(wb, `${fileName}.xlsx`);
-        }
     </script>
 </body>
 </html>
