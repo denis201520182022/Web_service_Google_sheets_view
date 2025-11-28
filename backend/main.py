@@ -17,7 +17,7 @@ from typing import List, Optional, Dict
 from datetime import timedelta, datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
-
+from gspread.utils import rowcol_to_a1
 from backend.config import (
     SERVICE_ACCOUNT_FILE, 
     HOST, 
@@ -364,7 +364,16 @@ def get_data(
             # Получаем только непустые ячейки с формулами
             formulas = {}
             # Используем batch_get для оптимизации
-            cell_list = worksheet.range(f'A1:{chr(65 + 25)}{len(all_values)}')
+            # Вычисляем реальные размеры таблицы на основе полученных данных
+            num_rows = len(all_values) + 10
+            # Если данных нет, берем минимум 26 столбцов, иначе реальную ширину
+            num_cols = len(all_values[0]) + 10 if num_rows > 0 else 26
+
+            # Генерируем правильный адрес последней ячейки (например, "AA150")
+            last_cell_notation = rowcol_to_a1(num_rows, num_cols)
+
+            # Запрашиваем диапазон динамически
+            cell_list = worksheet.range(f'A1:{last_cell_notation}')
             for cell in cell_list:
                 if cell.value and str(cell.value).startswith('='):
                     formulas[f"{cell.row-1},{cell.col-1}"] = cell.value

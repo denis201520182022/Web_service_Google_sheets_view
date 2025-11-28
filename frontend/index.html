@@ -147,6 +147,9 @@
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            /* Добавляем эти две строки для гибкости: */
+            flex-wrap: wrap; 
+            gap: 15px; /* Чуть увеличим отступ между элементами */
         }
 
         .logo {
@@ -230,6 +233,9 @@
             display: flex;
             gap: 10px;
             align-items: center;
+            /* Добавляем перенос: */
+            flex-wrap: wrap;
+            height: auto;
         }
 
         .tool-btn {
@@ -409,6 +415,25 @@
         .lock-indicator.show {
             display: flex;
         }
+
+        @media (max-width: 768px) {
+            /* Скрываем текст кнопок, оставляем только иконки на узких экранах */
+            .tool-btn span:not(.material-icons) {
+                display: none;
+            }
+            
+            /* Делаем заголовок компактнее */
+            .logo {
+                font-size: 18px;
+                width: 100%; /* Логотип на всю ширину сверху */
+                margin-bottom: 10px;
+            }
+            
+            /* Кнопка выхода тоже компактная */
+            .btn-logout {
+                margin-left: auto; /* Прижимаем вправо */
+            }
+        }
     </style>
 </head>
 <body>
@@ -465,7 +490,7 @@
             
             <div class="file-info">
                 <div class="file-name" id="file-name">Загрузка...</div>
-                <div class="sheet-tabs" id="sheet-tabs"></div>
+                
             </div>
             
             <div class="save-status" id="status-text">
@@ -1064,23 +1089,19 @@
 
         // === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===
         function renderSheetTabs() {
-            const container = document.getElementById('sheet-tabs');
             const selector = document.getElementById('sheet-dropdown');
             
-            container.innerHTML = '';
-            selector.innerHTML = '<option value="">Выберите лист...</option>';
+            // Очищаем и добавляем дефолтную опцию (если нужно, или сразу первый лист)
+            selector.innerHTML = ''; 
             
             availableSheets.forEach((sheetName, idx) => {
-                const tab = document.createElement('div');
-                tab.className = 'sheet-tab' + (idx === 0 ? ' active' : '');
-                tab.textContent = sheetName;
-                tab.onclick = () => selectSheet(sheetName);
-                container.appendChild(tab);
-                
                 const option = document.createElement('option');
                 option.value = sheetName;
                 option.textContent = sheetName;
+                
+                // Если это первый лист - выбираем его
                 if (idx === 0) option.selected = true;
+                
                 selector.appendChild(option);
             });
         }
@@ -1098,9 +1119,6 @@
                 
                 loadData(sheetName);
                 
-                document.querySelectorAll('.sheet-tab').forEach(tab => {
-                    tab.classList.toggle('active', tab.textContent === sheetName);
-                });
                 
                 document.getElementById('sheet-dropdown').value = sheetName;
             } catch (error) {
