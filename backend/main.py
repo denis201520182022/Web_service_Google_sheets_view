@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from datetime import timedelta, datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
@@ -96,7 +97,7 @@ class LockRangeRequest(BaseModel):
 class StyleUpdate(BaseModel):
     row: int
     col: int
-    style: Dict[str, any]  # Словарь стилей, например {"bold": True, "align": "center"}
+    style: Dict[str, Any]  # Словарь стилей, например {"bold": True, "align": "center"}
 
 class BatchStyleRequest(BaseModel):
     spreadsheet_id: str
