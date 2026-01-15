@@ -82,3 +82,21 @@ class AuditLog(Base):
     
     def __repr__(self):
         return f"<AuditLog {self.action} by {self.username} at {self.timestamp}>"
+    
+
+class CellStyle(Base):
+    """Стили оформления ячеек (локальные, не синхронизируются с Google)"""
+    __tablename__ = "cell_styles"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    spreadsheet_id = Column(String(255), nullable=False, index=True)
+    sheet_name = Column(String(255), nullable=False)
+    row = Column(Integer, nullable=False)  # 0-based индекс строки
+    col = Column(Integer, nullable=False)  # 0-based индекс колонки
+    style_json = Column(JSON, nullable=False)  # Например: {"bg": "#FFFF00", "bold": true}
+    
+    # Можно добавить связь с пользователем, если нужно знать, кто поменял стиль,
+    # но пока для простоты пропустим.
+    
+    def __repr__(self):
+        return f"<CellStyle {self.sheet_name}!R{self.row}C{self.col}>"

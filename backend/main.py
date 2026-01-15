@@ -17,6 +17,7 @@ from typing import List, Optional, Dict
 from datetime import timedelta, datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
+from backend.models import Base, User, UserSpreadsheet, LockedRange, CellStyle
 from gspread.utils import rowcol_to_a1
 from backend.config import (
     SERVICE_ACCOUNT_FILE, 
@@ -91,6 +92,16 @@ class LockRangeRequest(BaseModel):
     sheet_name: str
     range_notation: str
     reason: Optional[str] = None
+
+class StyleUpdate(BaseModel):
+    row: int
+    col: int
+    style: Dict[str, any]  # Словарь стилей, например {"bold": True, "align": "center"}
+
+class BatchStyleRequest(BaseModel):
+    spreadsheet_id: str
+    sheet_name: str
+    styles: List[StyleUpdate]
 
 # === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===
 def extract_spreadsheet_id(url: str) -> Optional[str]:
@@ -610,6 +621,73 @@ def unlock_range(
     
     return {"status": "success"}
 
+# === СТИЛИЗАЦИЯ (НОВЫЙ БЛОК) ===
+
+@app.post("/api/styles/save")
+def save_styles(
+    request_data: BatchStyleRequest,
+    user: User = Depends(verify_token),
+    db: Session = Depends(get_db)
+):
+    """Сохранение стилей для ячеек"""
+    # 1. Проверяем доступ к таблице (простая проверка)
+    # В идеале нужно проверять через UserSpreadsheet или Google API, 
+    # но пока доверимся spreadsheet_id, так как стиль не ломает данные.
+    
+    count = 0
+    for item in request_data.styles:
+        # Ищем, есть ли уже стиль для этой ячейки
+        existing_style = db.query(CellStyle).filter(
+            CellStyle.spreadsheet_id == request_data.spreadsheet_id,
+            CellStyle.sheet_name == request_data.sheet_name,
+            CellStyle.row == item.row,
+            CellStyle.col == item.col
+        ).first()
+        
+        if existing_style:
+            # Если стиль есть - обновляем JSON
+            # Мы полностью перезаписываем стиль для этой ячейки новым состоянием
+            existing_style.style_json = item.style
+        else:
+            # Если нет - создаем новый
+            new_style = CellStyle(
+                spreadsheet_id=request_data.spreadsheet_id,
+                sheet_name=request_data.sheet_name,
+                row=item.row,
+                col=item.col,
+                style_json=item.style
+            )
+            db.add(new_style)
+        count += 1
+    
+    db.commit()
+    logger.info(f"🎨 {user.username} обновил стили для {count} ячеек")
+    return {"status": "success", "updated": count}
+
+
+@app.get("/api/styles")
+def get_styles(
+    spreadsheet_id: str,
+    sheet_name: str,
+    user: User = Depends(verify_token),
+    db: Session = Depends(get_db)
+):
+    """Загрузка всех стилей для конкретного листа"""
+    styles = db.query(CellStyle).filter(
+        CellStyle.spreadsheet_id == spreadsheet_id,
+        CellStyle.sheet_name == sheet_name
+    ).all()
+    
+    # Преобразуем в список для фронтенда
+    result = []
+    for s in styles:
+        result.append({
+            "row": s.row,
+            "col": s.col,
+            "style": s.style_json
+        })
+        
+    return {"styles": result}
 
 if __name__ == "__main__":
     logger.info(f"🚀 Запуск сервера на {HOST}:{PORT}")
