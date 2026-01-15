@@ -11,7 +11,7 @@ asyncpg==0.29.0
 
 # === AUTH & SECURITY ===
 python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
+bcrypt==3.2.2
 python-dotenv==1.0.0
 
 # === GOOGLE SHEETS ===

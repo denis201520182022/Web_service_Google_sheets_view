@@ -1,5 +1,5 @@
 source venv/bin/activate
-systemctl start zabota_tables
+systemctl restart zabota_tables
 systemctl status zabota_tables
 journalctl -u zabota_tables -f
 

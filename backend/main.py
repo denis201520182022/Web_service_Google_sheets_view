@@ -361,23 +361,18 @@ def get_data(
         
         # Получаем формулы для всех ячеек (это дольше, но нужно для редактора)
         try:
-            # Получаем только непустые ячейки с формулами
+            # Запрашиваем "сырые" данные (формулы), а не результаты вычислений
+            raw_formulas = worksheet.get_all_values(value_render_option='FORMULA')
+            
             formulas = {}
-            # Используем batch_get для оптимизации
-            # Вычисляем реальные размеры таблицы на основе полученных данных
-            num_rows = len(all_values) + 10
-            # Если данных нет, берем минимум 26 столбцов, иначе реальную ширину
-            num_cols = len(all_values[0]) + 10 if num_rows > 0 else 26
-
-            # Генерируем правильный адрес последней ячейки (например, "AA150")
-            last_cell_notation = rowcol_to_a1(num_rows, num_cols)
-
-            # Запрашиваем диапазон динамически
-            cell_list = worksheet.range(f'A1:{last_cell_notation}')
-            for cell in cell_list:
-                if cell.value and str(cell.value).startswith('='):
-                    formulas[f"{cell.row-1},{cell.col-1}"] = cell.value
-        except:
+            for r, row in enumerate(raw_formulas):
+                for c, val in enumerate(row):
+                    # Если значение строка и начинается с '=', считаем это формулой
+                    if isinstance(val, str) and val.startswith('='):
+                        # r и c здесь совпадают с индексами в all_values
+                        formulas[f"{r},{c}"] = val
+        except Exception as e:
+            logger.error(f"⚠️ Не удалось загрузить формулы: {e}")
             formulas = {}
         
         min_rows, min_cols = 100, 26
@@ -489,6 +484,24 @@ def batch_update(
         logger.error(f"❌ Ошибка записи: {e}")
         raise HTTPException(status_code=500, detail=f"Ошибка записи: {str(e)}")
 
+
+@app.get("/api/sheets")
+def get_sheets_list(
+    user: User = Depends(verify_token),
+    db: Session = Depends(get_db)
+):
+    """Получение актуального списка листов"""
+    if user.username not in active_sheets:
+        raise HTTPException(status_code=400, detail="Таблица не выбрана")
+    
+    try:
+        spreadsheet = active_sheets[user.username]
+        # Запрашиваем свежий список листов у Google
+        sheet_names = [ws.title for ws in spreadsheet.worksheets()]
+        return {"sheets": sheet_names}
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения списка листов: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # === АДМИН ENDPOINTS ===
 

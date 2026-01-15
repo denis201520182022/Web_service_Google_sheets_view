@@ -8,8 +8,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # === JWT СЕКРЕТЫ ===
-SECRET_KEY = os.getenv("SECRET_KEY", "CHANGE_THIS_IN_PRODUCTION")
-ALGORITHM = os.getenv("ALGORITHM", "HS256")
+SECRET_KEY = os.getenv("SECRET_KEY")
+ALGORITHM = os.getenv("ALGORITHM")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "480"))  # 8 часов
 
 # === GOOGLE SHEETS ===
@@ -18,18 +18,17 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # === GOOGLE SHEETS ===
 # Берем имя файла из .env или используем дефолтное
-_filename = os.getenv("SERVICE_ACCOUNT_FILE", "service_account.json")
+_filename = os.getenv("SERVICE_ACCOUNT_FILE")
 
 # Склеиваем путь к папке backend с именем файла
 SERVICE_ACCOUNT_FILE = os.path.join(BASE_DIR, _filename)
 # === СЕРВЕР ===
-HOST = os.getenv("HOST", "0.0.0.0")
-PORT = int(os.getenv("PORT", "8000"))
+HOST = os.getenv("HOST")
+PORT = int(os.getenv("PORT"))
 
 # === БАЗА ДАННЫХ ===
 DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://postgres:password@localhost:5432/zabota_tables"
+    "DATABASE_URL"
 )
 
 # === CORS (для development - разрешаем все) ===

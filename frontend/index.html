@@ -498,7 +498,7 @@
                 <span>Сохранено</span>
             </div>
             
-            <button class="btn-logout" onclick="logout()">Выйти</button>
+            
         </div>
 
         <div class="toolbar">
@@ -735,11 +735,20 @@
         }
 
         // === ЗАГРУЗКА ДАННЫХ С ФОРМУЛАМИ ===
-        async function loadData(sheetName = null) {
-            setSaving('Загрузка...');
+        async function loadData(sheetName = null, isBackgroundUpdate = false) {
+            // Если это не фоновое обновление, показываем статус "Загрузка..."
+            if (!isBackgroundUpdate) {
+                setSaving('Загрузка...');
+            }
+            // === ДОБАВИТЬ ЭТУ СТРОКУ ===
+            activeLocks = []; // Очищаем блокировки перед загрузкой нового листа
+            // ==========================
             currentSheet = sheetName;
             pendingUpdates = [];
             clearTimeout(debounceTimer);
+
+            // 1. Запоминаем позицию курсора перед обновлением
+            const lastSelection = hot ? hot.getSelected() : null;
 
             try {
                 const url = sheetName 
@@ -758,6 +767,19 @@
                 
                 if (hot) {
                     hot.loadData(tableData);
+                    
+                    // 2. Восстанавливаем курсор, если он был
+                    if (lastSelection) {
+                        // lastSelection = [[startRow, startCol, endRow, endCol]]
+                        hot.selectCell(
+                            lastSelection[0][0], 
+                            lastSelection[0][1], 
+                            lastSelection[0][2], 
+                            lastSelection[0][3],
+                            true // true = не прокручивать экран к ячейке (чтобы не дёргалось)
+                        );
+                    }
+                    
                     hot.render();
                 } else {
                     renderTable(tableData);
@@ -792,11 +814,14 @@
                 cells: function(row, col) {
                     const cellProps = {};
                     
-                    // Если есть активные блокировки, проверяем каждую
                     if (activeLocks.length > 0) {
                         for (let lock of activeLocks) {
+                            // === ИЗМЕНЕНИЕ: Добавили проверку имени листа ===
+                            // Если блокировка чужая (от другого листа) — пропускаем её
+                            if (lock.sheet_name !== currentSheet) continue;
+
                             if (isCellInLock(row, col, lock.range)) {
-                                cellProps.className = 'locked-cell'; // Применяем CSS класс
+                                cellProps.className = 'locked-cell'; 
                                 break; 
                             }
                         }
@@ -892,23 +917,21 @@
 
                 if (response.ok) {
                     console.log(`✅ Сохранено ${updates.length} изменений`);
-                    setSaved();
+                    
+                    // === МАГИЯ ЗДЕСЬ ===
+                    // Сразу после сохранения тихо подтягиваем актуальные данные (результаты формул)
+                    await loadData(currentSheet, true); 
+                    
                 } 
                 else if (response.status === 403) {
-                    // === ЛОГИКА ОТКАТА ИЗМЕНЕНИЙ ===
                     const error = await response.json();
                     showLockIndicator();
                     setError();
                     
-                    // Проходим по всем неудавшимся изменениям и возвращаем oldValue
+                    // Откат изменений при ошибке блокировки
                     updates.forEach(item => {
-                        // 'revert_lock' — это метка, которую мы проверяем в afterChange,
-                        // чтобы не отправлять этот откат снова на сервер
                         hot.setDataAtCell(item.row, item.col, item.oldValue, 'revert_lock');
                     });
-
-                    // Можно не показывать alert, а ограничиться красивым индикатором
-                    // alert(error.detail); 
                 } 
                 else {
                     setError();
@@ -1132,7 +1155,41 @@
             if (sheetName) selectSheet(sheetName);
         }
 
-        function refreshData() { loadData(currentSheet); }
+        async function refreshData() {
+            setSaving('Обновление...');
+            
+            try {
+                // 1. Запрашиваем актуальный список листов
+                const response = await fetch(`${API_URL}/api/sheets`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    availableSheets = data.sheets;
+                    
+                    // Запоминаем текущий выбранный лист, чтобы он не слетел
+                    const currentSelection = document.getElementById('sheet-dropdown').value;
+                    
+                    // Перерисовываем выпадающий список
+                    renderSheetTabs();
+                    
+                    // Если текущий лист все еще существует, выбираем его обратно
+                    if (availableSheets.includes(currentSelection)) {
+                        document.getElementById('sheet-dropdown').value = currentSelection;
+                    } else {
+                        // Если лист удалили в оригинале, переключаемся на первый
+                        document.getElementById('sheet-dropdown').value = availableSheets[0];
+                        currentSheet = availableSheets[0];
+                    }
+                }
+            } catch (e) {
+                console.error("Не удалось обновить список листов", e);
+            }
+
+            // 2. Загружаем данные (ячейки)
+            loadData(currentSheet);
+        }
 
         function logout() {
             console.log('👋 Выход из системы');
