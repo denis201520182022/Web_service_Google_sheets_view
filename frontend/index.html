@@ -542,7 +542,24 @@
 
             <!-- === НАЧАЛО НОВОГО БЛОКА === -->
             <div class="separator"></div>
-
+            <!-- Группа шрифтов -->
+            <div class="tool-group">
+                <select class="tool-btn" id="font-family" onchange="applyStyle('font', this.value)" title="Шрифт">
+                    <option value="Inter">Inter</option>
+                    <option value="Arial">Arial</option>
+                    <option value="Courier New">Courier New</option>
+                    <option value="Times New Roman">Times New Roman</option>
+                    <option value="Verdana">Verdana</option>
+                </select>
+                <select class="tool-btn" id="font-size" onchange="applyStyle('fontSize', this.value)" title="Размер шрифта">
+                    <option value="12px">12</option>
+                    <option value="14px">14</option>
+                    <option value="16px">16</option>
+                    <option value="18px">18</option>
+                    <option value="20px">20</option>
+                    <option value="24px">24</option>
+                </select>
+            </div>
             <div class="tool-group">
                 <button class="tool-btn" onclick="applyStyle('bold')" title="Жирный">
                     <span class="material-icons">format_bold</span>
@@ -676,14 +693,10 @@
 
         async function applyStyle(type, value = null) {
             const selection = hot.getSelected();
-            if (!selection) {
-                alert("Сначала выберите ячейки!");
-                return;
-            }
+            if (!selection) return;
 
             const updates = [];
             
-            // Перебираем все выделенные ячейки (поддержка выделения диапазона)
             for (let i = 0; i < selection.length; i++) {
                 const [r1, c1, r2, c2] = selection[i];
                 const startRow = Math.min(r1, r2);
@@ -696,32 +709,22 @@
                         const key = `${r},${c}`;
                         if (!cellStyles[key]) cellStyles[key] = {};
 
-                        // Логика изменения конкретного свойства
-                        if (type === 'bold') {
-                            cellStyles[key].bold = !cellStyles[key].bold;
-                        } else if (type === 'italic') {
-                            cellStyles[key].italic = !cellStyles[key].italic;
-                        } else if (type === 'align') {
-                            cellStyles[key].align = value;
-                        } else if (type === 'color') {
-                            cellStyles[key].color = value;
-                        } else if (type === 'bg') {
-                            cellStyles[key].bg = value;
-                        }
+                        if (type === 'bold') cellStyles[key].bold = !cellStyles[key].bold;
+                        else if (type === 'italic') cellStyles[key].italic = !cellStyles[key].italic;
+                        else if (type === 'align') cellStyles[key].align = value;
+                        else if (type === 'color') cellStyles[key].color = value;
+                        else if (type === 'bg') cellStyles[key].bg = value;
+                        else if (type === 'font') cellStyles[key].font = value;      // Новое
+                        else if (type === 'fontSize') cellStyles[key].fontSize = value; // Новое
 
-                        updates.push({
-                            row: r,
-                            col: c,
-                            style: cellStyles[key]
-                        });
+                        updates.push({ row: r, col: c, style: cellStyles[key] });
                     }
                 }
             }
 
-            // Отрисовываем изменения в таблице немедленно
             hot.render();
 
-            // Отправляем на сервер
+            // Отправка на сервер (без изменений)
             try {
                 await fetch(`${API_URL}/api/styles/save`, {
                     method: 'POST',
@@ -735,10 +738,7 @@
                         styles: updates
                     })
                 });
-                console.log("🎨 Стили сохранены на сервере");
-            } catch (e) {
-                console.error("Ошибка сохранения стилей:", e);
-            }
+            } catch (e) { console.error(e); }
         }
         async function loadStyles() {
             if (!currentSpreadsheetId || !currentSheet) return;
@@ -1006,6 +1006,8 @@
                             if (style.align) td.style.textAlign = style.align;
                             if (style.color) td.style.color = style.color;
                             if (style.bg) td.style.backgroundColor = style.bg;
+                            if (style.font) td.style.fontFamily = style.font;       // Новое
+                            if (style.fontSize) td.style.fontSize = style.fontSize;
                         }
 
                         // Сохраняем поддержку класса для заблокированных ячеек
