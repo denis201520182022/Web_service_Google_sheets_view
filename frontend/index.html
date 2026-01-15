@@ -740,6 +740,36 @@
                 console.error("Ошибка сохранения стилей:", e);
             }
         }
+        async function loadStyles() {
+            if (!currentSpreadsheetId || !currentSheet) return;
+
+            try {
+                const response = await fetch(
+                    `${API_URL}/api/styles?spreadsheet_id=${currentSpreadsheetId}&sheet_name=${encodeURIComponent(currentSheet)}`,
+                    {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    }
+                );
+
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    // Очищаем старые стили перед загрузкой новых для этого листа
+                    cellStyles = {};
+                    
+                    // Преобразуем массив от сервера в наш объект map
+                    data.styles.forEach(item => {
+                        const key = `${item.row},${item.col}`;
+                        cellStyles[key] = item.style;
+                    });
+
+                    console.log(`🎨 Загружено стилей: ${data.styles.length}`);
+                    if (hot) hot.render();
+                }
+            } catch (e) {
+                console.error("Ошибка загрузки стилей:", e);
+            }
+        }
 
         // === ЗАГРУЗКА ИСТОРИИ ТАБЛИЦ ===
         async function loadSheetHistory() {
@@ -920,7 +950,7 @@
                 } else {
                     renderTable(tableData);
                 }
-
+                await loadStyles();
                 setSaved();
                 if (isAdmin) loadLocks();
             } catch (error) {
