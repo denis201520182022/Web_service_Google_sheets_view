@@ -258,6 +258,35 @@
             border-color: #667eea;
         }
 
+        /* Новые стили для форматирования */
+        input[type="color"] {
+            -webkit-appearance: none;
+            border: none;
+            width: 24px;
+            height: 24px;
+            padding: 0;
+            overflow: hidden;
+            background: transparent;
+            cursor: pointer;
+        }
+        input[type="color"]::-webkit-color-swatch-wrapper {
+            padding: 0;
+        }
+        input[type="color"]::-webkit-color-swatch {
+            border: none;
+            border-radius: 4px;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .tool-group {
+            display: flex;
+            gap: 2px;
+            background: #f8f9fa;
+            padding: 2px;
+            border-radius: 6px;
+            border: 1px solid #eee;
+        }
+
         .tool-btn .material-icons {
             font-size: 18px;
         }
@@ -510,6 +539,45 @@
                 <span class="material-icons">file_download</span>
                 Excel
             </button>
+            
+            <!-- === НАЧАЛО НОВОГО БЛОКА === -->
+            <div class="separator"></div>
+
+            <div class="tool-group">
+                <button class="tool-btn" onclick="applyStyle('bold')" title="Жирный">
+                    <span class="material-icons">format_bold</span>
+                </button>
+                <button class="tool-btn" onclick="applyStyle('italic')" title="Курсив">
+                    <span class="material-icons">format_italic</span>
+                </button>
+            </div>
+
+            <div class="tool-group">
+                <button class="tool-btn" onclick="applyStyle('align', 'left')" title="По левому краю">
+                    <span class="material-icons">format_align_left</span>
+                </button>
+                <button class="tool-btn" onclick="applyStyle('align', 'center')" title="По центру">
+                    <span class="material-icons">format_align_center</span>
+                </button>
+                <button class="tool-btn" onclick="applyStyle('align', 'right')" title="По правому краю">
+                    <span class="material-icons">format_align_right</span>
+                </button>
+            </div>
+
+            <div class="tool-group" style="align-items: center; padding: 0 8px;">
+                <label title="Цвет текста" style="cursor: pointer; display: flex;">
+                    <span class="material-icons" style="font-size: 18px; color: #666; margin-right: 4px;">format_color_text</span>
+                    <input type="color" id="text-color-picker" onchange="applyStyle('color', this.value)" value="#000000">
+                </label>
+            </div>
+            
+            <div class="tool-group" style="align-items: center; padding: 0 8px;">
+                <label title="Цвет заливки" style="cursor: pointer; display: flex;">
+                    <span class="material-icons" style="font-size: 18px; color: #666; margin-right: 4px;">format_color_fill</span>
+                    <input type="color" id="bg-color-picker" onchange="applyStyle('bg', this.value)" value="#ffffff">
+                </label>
+            </div>
+            <!-- === КОНЕЦ НОВОГО БЛОКА === -->
 
             <div class="separator"></div>
             
