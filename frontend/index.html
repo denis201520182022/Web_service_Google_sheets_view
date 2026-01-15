@@ -539,7 +539,7 @@
                 <span class="material-icons">file_download</span>
                 Excel
             </button>
-            
+
             <!-- === НАЧАЛО НОВОГО БЛОКА === -->
             <div class="separator"></div>
 
@@ -618,6 +618,7 @@
         let username = null;
         let isAdmin = false;
         let hot = null;
+        let cellStyles = {}; // Объект для хранения стилей: "row,col" -> {bold: true, color: "#ff0000", ...}
         let activeLocks = []; // Храним список блокировок здесь
         let currentSheet = null;
         let currentSpreadsheetId = null;
@@ -670,6 +671,73 @@
             } catch (error) {
                 errorMsg.textContent = 'Ошибка сети';
                 errorMsg.style.display = 'block';
+            }
+        }
+
+        async function applyStyle(type, value = null) {
+            const selection = hot.getSelected();
+            if (!selection) {
+                alert("Сначала выберите ячейки!");
+                return;
+            }
+
+            const updates = [];
+            
+            // Перебираем все выделенные ячейки (поддержка выделения диапазона)
+            for (let i = 0; i < selection.length; i++) {
+                const [r1, c1, r2, c2] = selection[i];
+                const startRow = Math.min(r1, r2);
+                const endRow = Math.max(r1, r2);
+                const startCol = Math.min(c1, c2);
+                const endCol = Math.max(c1, c2);
+
+                for (let r = startRow; r <= endRow; r++) {
+                    for (let c = startCol; c <= endCol; c++) {
+                        const key = `${r},${c}`;
+                        if (!cellStyles[key]) cellStyles[key] = {};
+
+                        // Логика изменения конкретного свойства
+                        if (type === 'bold') {
+                            cellStyles[key].bold = !cellStyles[key].bold;
+                        } else if (type === 'italic') {
+                            cellStyles[key].italic = !cellStyles[key].italic;
+                        } else if (type === 'align') {
+                            cellStyles[key].align = value;
+                        } else if (type === 'color') {
+                            cellStyles[key].color = value;
+                        } else if (type === 'bg') {
+                            cellStyles[key].bg = value;
+                        }
+
+                        updates.push({
+                            row: r,
+                            col: c,
+                            style: cellStyles[key]
+                        });
+                    }
+                }
+            }
+
+            // Отрисовываем изменения в таблице немедленно
+            hot.render();
+
+            // Отправляем на сервер
+            try {
+                await fetch(`${API_URL}/api/styles/save`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        spreadsheet_id: currentSpreadsheetId,
+                        sheet_name: currentSheet,
+                        styles: updates
+                    })
+                });
+                console.log("🎨 Стили сохранены на сервере");
+            } catch (e) {
+                console.error("Ошибка сохранения стилей:", e);
             }
         }
 
@@ -881,19 +949,42 @@
                 outsideClickDeselects: false,
                 cells: function(row, col) {
                     const cellProps = {};
+                    const key = `${row},${col}`;
                     
+                    // Блокировки (твой старый код)
                     if (activeLocks.length > 0) {
                         for (let lock of activeLocks) {
-                            // === ИЗМЕНЕНИЕ: Добавили проверку имени листа ===
-                            // Если блокировка чужая (от другого листа) — пропускаем её
                             if (lock.sheet_name !== currentSheet) continue;
-
                             if (isCellInLock(row, col, lock.range)) {
                                 cellProps.className = 'locked-cell'; 
                                 break; 
                             }
                         }
                     }
+
+                    // --- НОВЫЙ БЛОК: СТИЛИЗАЦИЯ ---
+                    cellProps.renderer = function(instance, td, row, col, prop, value, cellProperties) {
+                        // Вызываем стандартный текстовый рендерер Handsontable
+                        Handsontable.renderers.TextRenderer.apply(this, arguments);
+                        
+                        const sKey = `${row},${col}`;
+                        const style = cellStyles[sKey];
+                        
+                        if (style) {
+                            if (style.bold) td.style.fontWeight = 'bold';
+                            if (style.italic) td.style.fontStyle = 'italic';
+                            if (style.align) td.style.textAlign = style.align;
+                            if (style.color) td.style.color = style.color;
+                            if (style.bg) td.style.backgroundColor = style.bg;
+                        }
+
+                        // Сохраняем поддержку класса для заблокированных ячеек
+                        if (cellProperties.className === 'locked-cell') {
+                            td.classList.add('locked-cell');
+                        }
+                    };
+                    // ------------------------------
+
                     return cellProps;
                 },
                 manualColumnResize: true,
