@@ -700,36 +700,39 @@
         async function applyStyle(type, value = null) {
             const selection = hot.getSelected();
             if (!selection) return;
-            // --- ПРОВЕРКА БЛОКИРОВКИ (для не-админов) ---
+
+            // 1. ПРЕДВАРИТЕЛЬНАЯ ПРОВЕРКА (для обычных пользователей)
             if (!isAdmin) {
                 for (let i = 0; i < selection.length; i++) {
                     const [r1, c1, r2, c2] = selection[i];
-                    for (let r = Math.min(r1, r2); r <= Math.max(r1, r2); r++) {
-                        for (let c = Math.min(c1, c2); c <= Math.max(c1, c2); c++) {
-                            // Используем уже готовую функцию проверки из твоего кода
+                    const startRow = Math.min(r1, r2);
+                    const endRow = Math.max(r1, r2);
+                    const startCol = Math.min(c1, c2);
+                    const endCol = Math.max(c1, c2);
+
+                    for (let r = startRow; r <= endRow; r++) {
+                        for (let c = startCol; c <= endCol; c++) {
+                            // Проверяем, заблокирована ли конкретная ячейка (r, c)
                             const isLocked = activeLocks.some(lock => 
                                 lock.sheet_name === currentSheet && isCellInLock(r, c, lock.range)
                             );
+
                             if (isLocked) {
-                                showLockIndicator(); // Показываем красную плашку "Заблокировано"
-                                return; // Прерываем выполнение
+                                console.warn(`🚫 Попытка форматирования заблокированной ячейки [${r}, ${c}]`);
+                                showLockIndicator(); // Показываем красную плашку
+                                return; // ВАЖНО: Прерываем выполнение всей функции, ничего не красим!
                             }
                         }
                     }
                 }
             }
-            // --------------------------------------------
+
+            // 2. ЕСЛИ ПРОВЕРКА ПРОЙДЕНА (или юзер админ) — КРАСИМ
             const updates = [];
-            
             for (let i = 0; i < selection.length; i++) {
                 const [r1, c1, r2, c2] = selection[i];
-                const startRow = Math.min(r1, r2);
-                const endRow = Math.max(r1, r2);
-                const startCol = Math.min(c1, c2);
-                const endCol = Math.max(c1, c2);
-
-                for (let r = startRow; r <= endRow; r++) {
-                    for (let c = startCol; c <= endCol; c++) {
+                for (let r = Math.min(r1, r2); r <= Math.max(r1, r2); r++) {
+                    for (let c = Math.min(c1, c2); c <= Math.max(c1, c2); c++) {
                         const key = `${r},${c}`;
                         if (!cellStyles[key]) cellStyles[key] = {};
 
@@ -738,19 +741,20 @@
                         else if (type === 'align') cellStyles[key].align = value;
                         else if (type === 'color') cellStyles[key].color = value;
                         else if (type === 'bg') cellStyles[key].bg = value;
-                        else if (type === 'font') cellStyles[key].font = value;      // Новое
-                        else if (type === 'fontSize') cellStyles[key].fontSize = value; // Новое
+                        else if (type === 'font') cellStyles[key].font = value;
+                        else if (type === 'fontSize') cellStyles[key].fontSize = value;
 
                         updates.push({ row: r, col: c, style: cellStyles[key] });
                     }
                 }
             }
 
+            // Немедленно перерисовываем только если мы не прервались выше
             hot.render();
 
-            // Отправка на сервер (без изменений)
+            // 3. ОТПРАВКА НА СЕРВЕР
             try {
-                await fetch(`${API_URL}/api/styles/save`, {
+                const response = await fetch(`${API_URL}/api/styles/save`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -762,7 +766,17 @@
                         styles: updates
                     })
                 });
-            } catch (e) { console.error(e); }
+
+                if (!response.ok) {
+                    if (response.status === 403) {
+                        showLockIndicator();
+                        // Если сервер все же отказал, обновляем данные, чтобы сбросить локальные изменения стиля
+                        loadStyles(); 
+                    }
+                }
+            } catch (e) {
+                console.error("Ошибка сохранения стилей:", e);
+            }
         }
         async function loadStyles() {
             if (!currentSpreadsheetId || !currentSheet) return;

@@ -4,6 +4,9 @@ systemctl status zabota_tables
 journalctl -u zabota_tables -f
 
 
+tester pass123
+
+
 # 🚀 SheetPro - Прокси для Google Таблиц
 
 Безопасный веб-сервис для работы с Google Sheets через собственный интерфейс.
