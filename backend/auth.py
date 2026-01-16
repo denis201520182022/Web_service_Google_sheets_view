@@ -13,7 +13,7 @@ from backend.models import User, AuditLog
 from backend.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("zabota_tables")
 security = HTTPBearer()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -43,18 +43,18 @@ def authenticate_user(db: Session, username: str, password: str) -> Optional[Use
     user = db.query(User).filter(User.username == username).first()
     
     if not user:
-        logger.warning(f"❌ Попытка входа с несуществующим пользователем: {username}")
+        logger.warning(f"❌ Попытка входа с несуществующим пользователем: {username}", extra={'user_info': 'SYSTEM'})
         return None
     
     if not user.is_active:
-        logger.warning(f"❌ Попытка входа заблокированного пользователя: {username}")
+        logger.warning(f"❌ Попытка входа заблокированного пользователя: {username}", extra={'user_info': 'SYSTEM'})
         return None
     
     if not verify_password(password, user.hashed_password):
-        logger.warning(f"❌ Неверный пароль для пользователя: {username}")
+        logger.warning(f"❌ Неверный пароль", extra={'user_info': username})
         return None
     
-    logger.info(f"✅ Успешный вход пользователя: {username} (admin={user.is_admin})")
+    logger.info(f"✅ Успешный вход (admin={user.is_admin})", extra={'user_info': username})
     return user
 
 
@@ -111,12 +111,12 @@ def verify_token(
         username: str = payload.get("sub")
         
         if username is None:
-            logger.error("❌ Токен без username")
+            logger.error("❌ Токен без username", extra={'user_info': 'SYSTEM'})
             raise credentials_exception
         
         user = db.query(User).filter(User.username == username).first()
         if user is None:
-            logger.error(f"❌ Пользователь из токена не найден: {username}")
+            logger.error(f"❌ Пользователь не найден", extra={'user_info': username})
             raise credentials_exception
         
         if not user.is_active:
@@ -147,7 +147,7 @@ def require_admin(user: User = Depends(verify_token)) -> User:
         HTTPException: Если пользователь не админ
     """
     if not user.is_admin:
-        logger.warning(f"⚠️ Попытка доступа к админ-функции от {user.username}")
+        logger.warning(f"⚠️ Доступ запрещен: требуются права администратора", extra={'user_info': user.username})
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Требуются права администратора"
@@ -189,9 +189,11 @@ def log_action(
         db.add(log)
         db.commit()
         
-        emoji = "🔒" if action.startswith("lock") else "📝" if action.startswith("update") else "📊"
+        emoji = "🔒" if action.startswith("lock") else "📝" if action.startswith("update") or action.startswith("batch") else "📊"
         user_name = user.username if user else "anonymous"
-        logger.info(f"{emoji} {user_name}: {action} | sheet={sheet_name} | details={details}")
+        
+        # Передаем user_name в extra, чтобы фильтр из main.py подставил его в начало строки
+        logger.info(f"{emoji} Действие: {action} | sheet={sheet_name} | details={details}", extra={'user_info': user_name})
     except Exception as e:
         logger.error(f"❌ Ошибка записи audit лога: {e}")
         db.rollback()

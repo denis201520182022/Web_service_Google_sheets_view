@@ -7,6 +7,8 @@ import gspread
 import re
 import time
 import logging
+import os
+import random
 from gspread import Cell
 from gspread.exceptions import APIError
 from fastapi import FastAPI, HTTPException, Depends, Request
@@ -38,13 +40,18 @@ from backend.auth import (
     pwd_context  # <--- Добавь это
 )
 
-# === ЛОГИРОВАНИЕ ===
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s | %(levelname)-8s | %(name)-15s | %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-logger = logging.getLogger(__name__)
+LOG_FORMAT = "%(asctime)s | %(levelname)-7s | %(user_info)s | %(message)s"
+
+# Кастомный фильтр для добавления контекста (имя пользователя)
+class ContextFilter(logging.Filter):
+    def filter(self, record):
+        # Если мы не можем достать юзера из контекста, пишем "SYSTEM"
+        record.user_info = getattr(record, 'user_info', 'SYSTEM')
+        return True
+
+logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
+logger = logging.getLogger("zabota_tables")
+logger.addFilter(ContextFilter())
 
 # === ИНИЦИАЛИЗАЦИЯ ===
 app = FastAPI(title="Zabota Tables API", version="2.0.0")
@@ -61,13 +68,38 @@ app.mount("/static", StaticFiles(directory="frontend"), name="static")
 # Создание таблиц БД при запуске
 Base.metadata.create_all(bind=engine)
 logger.info("✅ База данных инициализирована")
+# === ИНИЦИАЛИЗАЦИЯ GOOGLE КЛИЕНТОВ ===
+SERVICE_ACCOUNTS_DIR = os.path.join(os.path.dirname(__file__), "service_accounts")
+gspread_clients = []
 
-try:
-    gc = gspread.service_account(filename=SERVICE_ACCOUNT_FILE)
-    logger.info("✅ Google Sheets API подключен")
-except Exception as e:
-    logger.error(f"❌ Ошибка подключения к Google: {e}")
-    gc = None
+def load_google_clients():
+    clients = []
+    # Сначала пробуем загрузить основной аккаунт из конфига как резервный
+    try:
+        if os.path.exists(SERVICE_ACCOUNT_FILE):
+            clients.append(gspread.service_account(filename=SERVICE_ACCOUNT_FILE))
+    except Exception as e:
+        logger.error(f"❌ Ошибка загрузки основного аккаунта: {e}", extra={'user_info': 'SYSTEM'})
+
+    # Затем грузим дополнительные из папки
+    if os.path.exists(SERVICE_ACCOUNTS_DIR):
+        for filename in os.listdir(SERVICE_ACCOUNTS_DIR):
+            if filename.endswith(".json"):
+                try:
+                    path = os.path.join(SERVICE_ACCOUNTS_DIR, filename)
+                    clients.append(gspread.service_account(filename=path))
+                    logger.info(f"✅ Доп. аккаунт {filename} подключен", extra={'user_info': 'SYSTEM'})
+                except Exception as e:
+                    logger.error(f"❌ Ошибка загрузки {filename}: {e}", extra={'user_info': 'SYSTEM'})
+    return clients
+
+gspread_clients = load_google_clients()
+
+def get_gc():
+    """Возвращает случайный аккаунт. Если список пуст - выбрасывает ошибку."""
+    if not gspread_clients:
+        raise RuntimeError("Ни один Google Service Account не загружен! Проверьте папку service_accounts или файл .env")
+    return random.choice(gspread_clients)
 
 active_sheets: Dict[str, any] = {}
 
@@ -231,13 +263,9 @@ def login(
     user = authenticate_user(db, credentials.username, credentials.password)
     
     if not user:
-        log_action(
-            db, 
-            user=None,
-            action="login_failed",
-            details={"username": credentials.username},
-            ip_address=get_client_ip(request)
-        )
+        # Здесь пишем SYSTEM, так как пользователь еще не опознан
+        logger.warning(f"❌ Неудачная попытка входа: {credentials.username}", extra={'user_info': 'SYSTEM'})
+        log_action(db, None, "login_failed", details={"username": credentials.username}, ip_address=get_client_ip(request))
         raise HTTPException(status_code=401, detail="Неверный логин или пароль")
     
     access_token = create_access_token(
@@ -245,6 +273,7 @@ def login(
         expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     
+    logger.info(f"✅ Успешный вход", extra={'user_info': user.username})
     log_action(db, user, "login", ip_address=get_client_ip(request))
     
     return {
@@ -266,7 +295,7 @@ def set_sheet(
     db: Session = Depends(get_db)
 ):
     """Подключение к Google таблице"""
-    if not gc:
+    if not gspread_clients:
         raise HTTPException(status_code=500, detail="Google API не подключен")
     
     spreadsheet_id = extract_spreadsheet_id(request_data.url)
@@ -274,7 +303,7 @@ def set_sheet(
         raise HTTPException(status_code=400, detail="Невалидная ссылка")
     
     try:
-        spreadsheet = gc.open_by_key(spreadsheet_id)
+        spreadsheet = get_gc().open_by_key(spreadsheet_id)
         active_sheets[user.username] = spreadsheet
         sheet_names = [ws.title for ws in spreadsheet.worksheets()]
         
@@ -287,7 +316,7 @@ def set_sheet(
         if existing:
             existing.access_count += 1
             existing.last_accessed = datetime.now()
-            logger.info(f"📊 {user.username} повторно открыл таблицу: {spreadsheet.title}")
+            logger.info(f"📊 {user.username} повторно открыл таблицу: {spreadsheet.title}", extra={'user_info': user.username})
         else:
             new_sheet = UserSpreadsheet(
                 user_id=user.id,
@@ -296,7 +325,7 @@ def set_sheet(
                 spreadsheet_url=request_data.url
             )
             db.add(new_sheet)
-            logger.info(f"📊 {user.username} открыл новую таблицу: {spreadsheet.title}")
+            logger.info(f"📊 {user.username} открыл новую таблицу: {spreadsheet.title}", extra={'user_info': user.username})
         
         db.commit()
         log_action(
@@ -360,7 +389,7 @@ def select_sheet(
             active_sheets[user.username]._active_worksheet = {}
         active_sheets[user.username]._active_worksheet[user.username] = worksheet
         
-        logger.info(f"📄 {user.username} выбрал лист: {request_data.sheet_name}")
+        logger.info(f"📄 {user.username} выбрал лист: {request_data.sheet_name}", extra={'user_info': user.username})
         
         return {"status": "success", "sheet": request_data.sheet_name}
     except Exception as e:
@@ -423,7 +452,7 @@ def get_data(
                                 # Если список из диапазона (ONE_OF_RANGE), это чуть сложнее,
                                 # но для начала реализуем прямой список
         except Exception as e:
-            logger.error(f"⚠️ Ошибка получения валидаций: {e}")
+            logger.error(f"⚠️ Ошибка получения валидаций: {e}", extra={'user_info': user.username})
 
         # Дополняем пустые строки/колонки
         min_rows, min_cols = 100, 26
@@ -440,9 +469,8 @@ def get_data(
             "sheet_name": worksheet.title
         }
     except Exception as e:
-        logger.error(f"❌ Ошибка: {e}")
+        logger.error(f"❌ Ошибка: {e}", extra={'user_info': user.username})
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.post("/api/batch-update")
 def batch_update(
@@ -452,12 +480,15 @@ def batch_update(
     user: User = Depends(verify_token),
     db: Session = Depends(get_db)
 ):
-    """Массовое обновление ячеек с проверкой блокировок"""
+    """Массовое обновление ячеек с проверкой блокировок и владением именем"""
     if user.username not in active_sheets:
         raise HTTPException(status_code=400, detail="Таблица не выбрана")
     
     if not batch.updates:
         return {"status": "ignored"}
+
+    # Формируем полное имя текущего пользователя для проверки (как на фронтенде)
+    full_name = f"{user.first_name} {user.last_name}".strip()
     
     try:
         spreadsheet = active_sheets[user.username]
@@ -470,22 +501,34 @@ def batch_update(
         else:
             worksheet = spreadsheet.sheet1
         
-        # Проверяем блокировки (только для не-админов)
+        # --- БЛОК ПРОВЕРОК БЕЗОПАСНОСТИ ---
         if not user.is_admin:
-            blocked_cells = []
             for item in batch.updates:
+                # 1. Проверка глобальных блокировок админа
                 lock = is_cell_locked(db, spreadsheet_id, worksheet.title, item.row, item.col)
                 if lock:
-                    blocked_cells.append((item.row, item.col, lock.range_notation))
-            
-            if blocked_cells:
-                logger.warning(
-                    f"🔒 {user.username} попытался изменить заблокированные ячейки: {blocked_cells}"
-                )
-                raise HTTPException(
-                    status_code=403,
-                    detail=f"Ячейки заблокированы администратором: {blocked_cells[0][2]}"
-                )
+                    logger.warning(
+                        f"🔒 Попытка изменения заблокированной ячейки: {lock.range_notation}", 
+                        extra={'user_info': user.username}
+                    )
+                    raise HTTPException(
+                        status_code=403,
+                        detail=f"Ячейки заблокированы администратором: {lock.range_notation}"
+                    )
+
+                # 2. Проверка владения (защита выпадающих списков)
+                new_val = item.newValue.strip()
+                # Если ячейка не пустая и значение не совпадает с именем пользователя - блокируем
+                if new_val != "" and new_val != full_name:
+                    logger.warning(
+                        f"🚫 Попытка подмены имени на: {new_val}", 
+                        extra={'user_info': user.username}
+                    )
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Вы можете выбрать только своё собственное имя"
+                    )
+        # ----------------------------------
         
         cells_to_update = []
         for item in batch.updates:
@@ -493,14 +536,15 @@ def batch_update(
             col = item.col + 1
             cells_to_update.append(Cell(row, col, item.newValue))
         
-        # Retry логика
+        # Retry логика (Quota management)
         max_retries = 5
         for i in range(max_retries):
             try:
                 worksheet.update_cells(cells_to_update, value_input_option='USER_ENTERED')
                 
                 logger.info(
-                    f"✏️ {user.username} обновил {len(cells_to_update)} ячеек в {worksheet.title}"
+                    f"✏️ Обновлено {len(cells_to_update)} ячеек в '{worksheet.title}'", 
+                    extra={'user_info': user.username}
                 )
                 
                 log_action(
@@ -516,13 +560,11 @@ def batch_update(
             except APIError as e:
                 if e.response.status_code == 429:
                     if i == max_retries - 1:
-                        raise HTTPException(
-                            status_code=429,
-                            detail="Слишком много запросов к Google, попробуйте позже"
-                        )
+                        logger.error("🛑 Превышена квота Google после всех попыток", extra={'user_info': user.username})
+                        raise HTTPException(status_code=429, detail="Слишком много запросов к Google")
                     
                     sleep_time = (2 ** i)
-                    logger.warning(f"⚠️ Quota exceeded. Waiting {sleep_time}s...")
+                    logger.warning(f"⚠️ Лимит Google API. Ожидание {sleep_time}с...", extra={'user_info': user.username})
                     time.sleep(sleep_time)
                 else:
                     raise e
@@ -530,9 +572,8 @@ def batch_update(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Ошибка записи: {e}")
+        logger.error(f"❌ Ошибка записи: {e}", extra={'user_info': user.username if user else 'SYSTEM'})
         raise HTTPException(status_code=500, detail=f"Ошибка записи: {str(e)}")
-
 
 @app.get("/api/sheets")
 def get_sheets_list(
@@ -674,7 +715,7 @@ def save_styles(
         for item in request_data.styles:
             lock = is_cell_locked(db, request_data.spreadsheet_id, request_data.sheet_name, item.row, item.col)
             if lock:
-                logger.warning(f"🔒 {user.username} пытался покрасить заблокированную ячейку")
+                logger.warning(f"🔒 {user.username} пытался покрасить заблокированную ячейку", extra={'user_info': user.username})
                 raise HTTPException(
                     status_code=403, 
                     detail=f"Нельзя форматировать заблокированные ячейки ({lock.range_notation})"
