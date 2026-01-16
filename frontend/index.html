@@ -139,7 +139,13 @@
             height: 100vh;
             background: #f5f5f5;
         }
-
+        /* Разрешаем ячейкам растягиваться под большой шрифт */
+        .handsontable td {
+            white-space: nowrap;
+            line-height: normal !important;
+            padding-top: 2px;
+            padding-bottom: 2px;
+        }
         .app-header {
             display: flex;
             align-items: center;
@@ -584,14 +590,14 @@
             <div class="tool-group" style="align-items: center; padding: 0 8px;">
                 <label title="Цвет текста" style="cursor: pointer; display: flex;">
                     <span class="material-icons" style="font-size: 18px; color: #666; margin-right: 4px;">format_color_text</span>
-                    <input type="color" id="text-color-picker" onchange="applyStyle('color', this.value)" value="#000000">
+                    <input type="color" id="text-color-picker" oninput="applyStyle('color', this.value)" value="#000000">
                 </label>
             </div>
             
             <div class="tool-group" style="align-items: center; padding: 0 8px;">
                 <label title="Цвет заливки" style="cursor: pointer; display: flex;">
                     <span class="material-icons" style="font-size: 18px; color: #666; margin-right: 4px;">format_color_fill</span>
-                    <input type="color" id="bg-color-picker" onchange="applyStyle('bg', this.value)" value="#ffffff">
+                    <input type="color" id="bg-color-picker" oninput="applyStyle('bg', this.value)" value="#ffffff">
                 </label>
             </div>
             <!-- === КОНЕЦ НОВОГО БЛОКА === -->
@@ -994,7 +1000,6 @@
 
                     // --- НОВЫЙ БЛОК: СТИЛИЗАЦИЯ ---
                     cellProps.renderer = function(instance, td, row, col, prop, value, cellProperties) {
-                        // Вызываем стандартный текстовый рендерер Handsontable
                         Handsontable.renderers.TextRenderer.apply(this, arguments);
                         
                         const sKey = `${row},${col}`;
@@ -1006,11 +1011,16 @@
                             if (style.align) td.style.textAlign = style.align;
                             if (style.color) td.style.color = style.color;
                             if (style.bg) td.style.backgroundColor = style.bg;
-                            if (style.font) td.style.fontFamily = style.font;       // Новое
-                            if (style.fontSize) td.style.fontSize = style.fontSize;
+                            
+                            // Используем setProperty с 'important', чтобы перебить стили библиотеки
+                            if (style.font) {
+                                td.style.setProperty('font-family', style.font, 'important');
+                            }
+                            if (style.fontSize) {
+                                td.style.setProperty('font-size', style.fontSize, 'important');
+                            }
                         }
 
-                        // Сохраняем поддержку класса для заблокированных ячеек
                         if (cellProperties.className === 'locked-cell') {
                             td.classList.add('locked-cell');
                         }
