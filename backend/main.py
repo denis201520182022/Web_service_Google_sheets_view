@@ -33,7 +33,8 @@ from backend.auth import (
     create_access_token, 
     verify_token, 
     require_admin,
-    log_action
+    log_action,
+    pwd_context  # <--- Добавь это
 )
 
 # === ЛОГИРОВАНИЕ ===
@@ -103,6 +104,20 @@ class BatchStyleRequest(BaseModel):
     spreadsheet_id: str
     sheet_name: str
     styles: List[StyleUpdate]
+
+class UserCreate(BaseModel):
+    username: str
+    password: str
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    is_admin: bool = False
+
+class UserUpdate(BaseModel):
+    username: Optional[str] = None
+    password: Optional[str] = None # Если None - пароль не меняем
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    is_admin: Optional[bool] = None
 
 # === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===
 def extract_spreadsheet_id(url: str) -> Optional[str]:
@@ -710,6 +725,83 @@ def get_styles(
         })
         
     return {"styles": result}
+
+# === УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ (АДМИН) ===
+
+@app.get("/api/admin/users")
+def list_users(admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """Получить список всех пользователей"""
+    users = db.query(User).all()
+    return [
+        {
+            "id": u.id,
+            "username": u.username,
+            "first_name": u.first_name,
+            "last_name": u.last_name,
+            "is_admin": u.is_admin,
+            "is_active": u.is_active,
+            "created_at": u.created_at
+        } for u in users
+    ]
+
+@app.post("/api/admin/users")
+def create_user(
+    user_data: UserCreate, 
+    admin: User = Depends(require_admin), 
+    db: Session = Depends(get_db)
+):
+    """Создать нового пользователя"""
+    existing = db.query(User).filter(User.username == user_data.username).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Пользователь с таким логином уже есть")
+    
+    new_user = User(
+        username=user_data.username,
+        hashed_password=pwd_context.hash(user_data.password),
+        first_name=user_data.first_name,
+        last_name=user_data.last_name,
+        is_admin=user_data.is_admin
+    )
+    db.add(new_user)
+    db.commit()
+    return {"status": "success", "user_id": new_user.id}
+
+@app.put("/api/admin/users/{user_id}")
+def update_user(
+    user_id: int, 
+    user_data: UserUpdate, 
+    admin: User = Depends(require_admin), 
+    db: Session = Depends(get_db)
+):
+    """Редактировать пользователя"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+    
+    if user_data.username: user.username = user_data.username
+    if user_data.first_name: user.first_name = user_data.first_name
+    if user_data.last_name: user.last_name = user_data.last_name
+    if user_data.is_admin is not None: user.is_admin = user_data.is_admin
+    
+    if user_data.password:
+        user.hashed_password = pwd_context.hash(user_data.password)
+        
+    db.commit()
+    return {"status": "success"}
+
+@app.delete("/api/admin/users/{user_id}")
+def delete_user(user_id: int, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """Удалить пользователя (нельзя удалить самого себя)"""
+    if user_id == admin.id:
+        raise HTTPException(status_code=400, detail="Нельзя удалить самого себя")
+        
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+    
+    db.delete(user)
+    db.commit()
+    return {"status": "success"}
 
 if __name__ == "__main__":
     logger.info(f"🚀 Запуск сервера на {HOST}:{PORT}")

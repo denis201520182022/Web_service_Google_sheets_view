@@ -18,6 +18,9 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    first_name = Column(String(100), nullable=True)
+    last_name = Column(String(100), nullable=True)
     
     # Связи
     spreadsheets = relationship("UserSpreadsheet", back_populates="user", cascade="all, delete-orphan")

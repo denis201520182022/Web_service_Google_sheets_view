@@ -3,6 +3,8 @@ systemctl restart zabota_tables
 systemctl status zabota_tables
 journalctl -u zabota_tables -f
 
+alembic revision --autogenerate -m "add_names_to_user"
+alembic upgrade head
 
 tester pass123
 
