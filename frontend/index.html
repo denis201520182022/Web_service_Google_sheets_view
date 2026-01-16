@@ -663,12 +663,13 @@
         let pendingUpdates = [];
 
         // === АВТОРИЗАЦИЯ ===
+        // === АВТОРИЗАЦИЯ ===
         async function login() {
-            const user = document.getElementById('username').value;
-            const pass = document.getElementById('password').value;
+            const userInput = document.getElementById('username').value;
+            const passInput = document.getElementById('password').value;
             const errorMsg = document.getElementById('login-error');
 
-            if (!user || !pass) {
+            if (!userInput || !passInput) {
                 errorMsg.textContent = 'Заполните все поля';
                 errorMsg.style.display = 'block';
                 return;
@@ -678,7 +679,7 @@
                 const response = await fetch(`${API_URL}/api/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username: user, password: pass })
+                    body: JSON.stringify({ username: userInput, password: passInput })
                 });
 
                 if (response.ok) {
@@ -686,19 +687,19 @@
                     token = data.access_token;
                     username = data.username;
                     isAdmin = data.is_admin;
+                    
+                    // Сохраняем имя и фамилию
                     userFirstName = data.first_name || "";
                     userLastName = data.last_name || "";
                     userFullName = `${userFirstName} ${userLastName}`.trim();
                     
-                    // === ВСТАВЛЯЕМ СЮДА ===
-                    // Если таблица уже создана, заставляем её применить новые правила фильтрации
+                    console.log(`✅ Вход выполнен: ${username} (admin=${isAdmin})`);
+                    
+                    // Если таблица уже была создана, обновляем её настройки под текущего юзера
                     if (hot) {
                         hot.updateSettings({}); 
                     }
-                    // =====================
 
-                    console.log(`✅ Вход выполнен: ${username} (admin=${isAdmin})`);
-                    
                     document.getElementById('login-screen').style.display = 'none';
                     document.getElementById('sheet-selector').style.display = 'flex';
                     
@@ -711,12 +712,11 @@
                     errorMsg.textContent = 'Неверный логин или пароль';
                     errorMsg.style.display = 'block';
                 }
-            
             } catch (error) {
+                console.error(error);
                 errorMsg.textContent = 'Ошибка сети';
                 errorMsg.style.display = 'block';
             }
-            
         }
 
         async function applyStyle(type, value = null) {
@@ -1038,64 +1038,57 @@
                 width: '100%',
                 height: '100%',
                 outsideClickDeselects: false,
-                // Запрещаем ввод значений, которых нет в списке
-                allowInvalid: false, 
+                allowInvalid: false,
                 
                 cells: function(row, col) {
                     const cellProps = {};
                     const key = `${row},${col}`;
+                    const tableInstance = this.instance; 
                     
-                    // --- 1. ЛОГИКА ВЫПАДАЮЩИХ СПИСКОВ И ЗАЩИТЫ ИМЕН ---
+                    // 1. ВЫПАДАЮЩИЕ СПИСКИ И ЗАЩИТА ИМЕН
                     if (cellValidations[key]) {
                         cellProps.type = 'dropdown';
                         const originalSource = cellValidations[key];
 
                         if (isAdmin) {
-                            // Админ видит всех и может всё
                             cellProps.source = originalSource;
                             cellProps.readOnly = false;
                         } else {
-                            // Обычный пользователь
                             const currentValue = tableInstance.getDataAtCell(row, col);
 
                             if (!currentValue || currentValue === "") {
-                                // Ячейка пуста — можно выбрать ТОЛЬКО себя (если имя есть в списке Google)
                                 cellProps.source = originalSource.filter(name => name === userFullName);
                                 cellProps.readOnly = false;
                             } else if (currentValue === userFullName) {
-                                // В ячейке уже забит ТЕКУЩИЙ юзер — он может себя удалить (выбрав пустую строку)
                                 cellProps.source = ["", userFullName];
                                 cellProps.readOnly = false;
                             } else {
-                                // Ячейка занята КЕМ-ТО ДРУГИМ — запрещаем трогать
                                 cellProps.source = [currentValue];
                                 cellProps.readOnly = true; 
                             }
                         }
                     }
 
-                    // --- 2. БЛОКИРОВКИ АДМИНИСТРАТОРА (Range Locks) ---
+                    // 2. БЛОКИРОВКИ АДМИНИСТРАТОРА
                     if (activeLocks.length > 0) {
                         for (let lock of activeLocks) {
                             if (lock.sheet_name !== currentSheet) continue;
                             if (isCellInLock(row, col, lock.range)) {
                                 cellProps.className = 'locked-cell'; 
-                                cellProps.readOnly = true; // Дополнительная защита
+                                cellProps.readOnly = true;
                                 break; 
                             }
                         }
                     }
 
-                    // --- 3. КАСТОМНЫЙ РЕНДЕРЕР (Стили + Визуал) ---
+                    // 3. РЕНДЕРЕР (Стили + Визуал)
                     cellProps.renderer = function(instance, td, row, col, prop, value, cellProperties) {
-                        // Выбираем рендерер в зависимости от типа (dropdown или text)
                         const baseRenderer = Handsontable.renderers.getRenderer(cellProperties.type || 'text');
                         baseRenderer.apply(this, arguments);
                         
-                        // Если ячейка стала readOnly из-за того, что занята другим учеником
                         if (cellProperties.readOnly && !cellProperties.className?.includes('locked-cell')) {
-                            td.style.backgroundColor = '#f3f3f3'; // Светло-серый фон
-                            td.style.color = '#999';             // Блеклый текст
+                            td.style.backgroundColor = '#f3f3f3';
+                            td.style.color = '#999';
                         }
 
                         const sKey = `${row},${col}`;
@@ -1107,13 +1100,8 @@
                             if (style.align) td.style.textAlign = style.align;
                             if (style.color) td.style.color = style.color;
                             if (style.bg) td.style.backgroundColor = style.bg;
-                            
-                            if (style.font) {
-                                td.style.setProperty('font-family', style.font, 'important');
-                            }
-                            if (style.fontSize) {
-                                td.style.setProperty('font-size', style.fontSize, 'important');
-                            }
+                            if (style.font) td.style.setProperty('font-family', style.font, 'important');
+                            if (style.fontSize) td.style.setProperty('font-size', style.fontSize, 'important');
                         }
 
                         if (cellProperties.className === 'locked-cell') {
@@ -1173,15 +1161,6 @@
                 }
             });
 
-            formulaInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter' && selectedCell.row !== null && selectedCell.col !== null) {
-                    const newValue = formulaInput.value;
-                    hot.setDataAtCell(selectedCell.row, selectedCell.col, newValue);
-                }
-            });
-
-            setTimeout(() => hot.render(), 100);
-        }
             formulaInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter' && selectedCell.row !== null && selectedCell.col !== null) {
                     const newValue = formulaInput.value;
