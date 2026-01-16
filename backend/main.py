@@ -251,7 +251,10 @@ def login(
         "access_token": access_token,
         "token_type": "bearer",
         "username": user.username,
-        "is_admin": user.is_admin
+        "is_admin": user.is_admin,
+        # --- ДОБАВЬ ЭТИ ПОЛЯ ---
+        "first_name": user.first_name,
+        "last_name": user.last_name
     }
 
 
