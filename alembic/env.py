@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.join(project_root, 'backend'))
 
 # Теперь эти импорты сработают, так как мы внутри папки backend
 from database import Base, DATABASE_URL
-from models import User, UserSpreadsheet, LockedRange, AuditLog
+from models import User, UserSpreadsheet, LockedRange, AuditLog, CellStyle
 
 config = context.config
 config.set_main_option('sqlalchemy.url', DATABASE_URL)
