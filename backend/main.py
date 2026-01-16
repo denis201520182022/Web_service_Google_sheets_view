@@ -17,6 +17,7 @@ from typing import List, Optional, Dict
 from typing import List, Optional, Dict, Any
 from datetime import timedelta, datetime
 from sqlalchemy.orm import Session
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import desc
 from backend.models import Base, User, UserSpreadsheet, LockedRange, CellStyle
 from gspread.utils import rowcol_to_a1
@@ -56,7 +57,7 @@ app.add_middleware(
     allow_credentials=True,
     expose_headers=["*"],
 )
-
+app.mount("/static", StaticFiles(directory="frontend"), name="static")
 # Создание таблиц БД при запуске
 Base.metadata.create_all(bind=engine)
 logger.info("✅ База данных инициализирована")
