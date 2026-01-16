@@ -355,7 +355,7 @@ def get_data(
     user: User = Depends(verify_token),
     db: Session = Depends(get_db)
 ):
-    """Получение данных из таблицы"""
+    """Получение данных, формул и выпадающих списков"""
     if user.username not in active_sheets:
         raise HTTPException(status_code=400, detail="Таблица не выбрана")
     
@@ -368,43 +368,61 @@ def get_data(
         else:
             worksheet = spreadsheet.sheet1
         
-        # Получаем формулы вместо значений
+        # 1. Получаем значения и формулы (как и было)
         all_values = worksheet.get_all_values()
-        
-        # Получаем формулы для всех ячеек (это дольше, но нужно для редактора)
         try:
-            # Запрашиваем "сырые" данные (формулы), а не результаты вычислений
             raw_formulas = worksheet.get_all_values(value_render_option='FORMULA')
+            formulas = {f"{r},{c}": val for r, row in enumerate(raw_formulas) 
+                        for c, val in enumerate(row) if isinstance(val, str) and val.startswith('=')}
+        except:
+            formulas = {}
+
+        # 2. НОВОЕ: Получаем выпадающие списки (Data Validation)
+        validations = {}
+        try:
+            # Делаем прямой запрос к API для получения структуры ячеек
+            # Нам нужны поля dataValidation
+            params = {
+                'includeGridData': True,
+                'ranges': f"'{worksheet.title}'!A1:Z100", # Берем запас 100 строк
+                'fields': 'sheets.data.rowData.values.dataValidation'
+            }
+            sheet_data = spreadsheet.fetch_sheet_metadata(params)
             
-            formulas = {}
-            for r, row in enumerate(raw_formulas):
-                for c, val in enumerate(row):
-                    # Если значение строка и начинается с '=', считаем это формулой
-                    if isinstance(val, str) and val.startswith('='):
-                        # r и c здесь совпадают с индексами в all_values
-                        formulas[f"{r},{c}"] = val
+            # Парсим ответ
+            grid_data = sheet_data['sheets'][0]['data'][0]
+            if 'rowData' in grid_data:
+                for r, row in enumerate(grid_data['rowData']):
+                    if 'values' in row:
+                        for c, cell in enumerate(row['values']):
+                            if 'dataValidation' in cell:
+                                dv = cell['dataValidation']
+                                # Проверяем, что это список (ONE_OF_LIST)
+                                if dv.get('condition', {}).get('type') == 'ONE_OF_LIST':
+                                    values = [v.get('userEnteredValue') for v in dv['condition'].get('values', [])]
+                                    validations[f"{r},{c}"] = values
+                                # Если список из диапазона (ONE_OF_RANGE), это чуть сложнее,
+                                # но для начала реализуем прямой список
         except Exception as e:
-            logger.error(f"⚠️ Не удалось загрузить формулы: {e}")
-            formulas = {}
-        
+            logger.error(f"⚠️ Ошибка получения валидаций: {e}")
+
+        # Дополняем пустые строки/колонки
         min_rows, min_cols = 100, 26
-        if len(all_values) < min_rows:
-            all_values.extend([[''] * max(len(all_values[0]) if all_values else min_cols, min_cols) 
-                        for _ in range(min_rows - len(all_values))])
+        while len(all_values) < min_rows:
+            all_values.append([''] * max(len(all_values[0]) if all_values else min_cols, min_cols))
         for row in all_values:
-            if len(row) < min_cols:
-                row.extend([''] * (min_cols - len(row)))
-        
-        logger.info(f"📥 {user.username} загрузил данные из листа: {worksheet.title}")
+            while len(row) < min_cols:
+                row.append('')
         
         return {
             "data": all_values,
             "formulas": formulas,
+            "validations": validations, # Отправляем списки на фронт
             "sheet_name": worksheet.title
         }
     except Exception as e:
-        logger.error(f"❌ Ошибка чтения данных: {e}")
-        raise HTTPException(status_code=500, detail=f"Ошибка чтения: {str(e)}")
+        logger.error(f"❌ Ошибка: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/batch-update")
@@ -668,7 +686,7 @@ def save_styles(
     db.commit()
     return {"status": "success", "updated": count}
 
-    
+
 @app.get("/api/styles")
 def get_styles(
     spreadsheet_id: str,

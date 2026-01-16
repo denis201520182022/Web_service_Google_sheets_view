@@ -643,6 +643,7 @@
         let hot = null;
         let cellStyles = {}; // Объект для хранения стилей: "row,col" -> {bold: true, color: "#ff0000", ...}
         let activeLocks = []; // Храним список блокировок здесь
+        let cellValidations = {}; // "row,col" -> ["Вариант1", "Вариант2"]
         let currentSheet = null;
         let currentSpreadsheetId = null;
         let availableSheets = [];
@@ -965,8 +966,9 @@
 
                 const json = await response.json();
                 const tableData = json.data && json.data.length > 0 ? json.data : [['']];
+
                 formulasMap = json.formulas || {};
-                
+                cellValidations = json.validations || {}; // СОХРАНЯЕМ СПИСКИ
                 console.log('📥 Загружено формул:', Object.keys(formulasMap).length);
                 
                 if (hot) {
@@ -1018,7 +1020,12 @@
                 cells: function(row, col) {
                     const cellProps = {};
                     const key = `${row},${col}`;
-                    
+                    // --- НОВОЕ: ПРОВЕРКА ВЫПАДАЮЩЕГО СПИСКА ---
+                    if (cellValidations[key]) {
+                        cellProps.type = 'dropdown';
+                        cellProps.source = cellValidations[key];
+                    }
+                    // ------------------------------------------
                     // Блокировки (твой старый код)
                     if (activeLocks.length > 0) {
                         for (let lock of activeLocks) {
@@ -1032,7 +1039,8 @@
 
                     // --- НОВЫЙ БЛОК: СТИЛИЗАЦИЯ ---
                     cellProps.renderer = function(instance, td, row, col, prop, value, cellProperties) {
-                        Handsontable.renderers.TextRenderer.apply(this, arguments);
+                        const baseRenderer = Handsontable.renderers.getRenderer(cellProperties.type || 'text');
+                        baseRenderer.apply(this, arguments);
                         
                         const sKey = `${row},${col}`;
                         const style = cellStyles[sKey];
