@@ -49,15 +49,54 @@
 }
 
 .form-group { display: flex; flex-direction: column; gap: 5px; }
+.form-group label { font-size: 13px; font-weight: 600; color: #444; }
 .form-group input { padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
 
 .full-width { grid-column: span 2; }
 
-.btn-add { background: #27ae60; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; }
-.btn-save { background: #667eea; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; }
-.btn-cancel { background: #95a5a6; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; }
+/* Кнопки */
+.btn-add { 
+    background: #27ae60; color: white; border: none; 
+    padding: 10px 20px; border-radius: 6px; cursor: pointer; 
+    margin-bottom: 10px;
+}
 
-.action-btns { display: flex; gap: 8px; }
-.action-btns button { border: none; background: none; cursor: pointer; }
+/* Кнопки в самой форме (Сохранить/Отмена) */
+.user-form .action-btns { 
+    display: flex; 
+    gap: 12px; 
+    margin-top: 10px;
+}
+
+.btn-save { 
+    background: #667eea !important; 
+    color: white !important; 
+    border: none; 
+    padding: 10px 25px; 
+    border-radius: 6px; 
+    cursor: pointer; 
+    font-weight: 600;
+}
+
+.btn-cancel { 
+    background: #95a5a6 !important; 
+    color: white !important; 
+    border: none; 
+    padding: 10px 25px; 
+    border-radius: 6px; 
+    cursor: pointer; 
+}
+
+/* Кнопки-иконки в ТАБЛИЦЕ (редактировать/удалить) */
+.user-table .action-btns button { 
+    border: none; 
+    background: none !important; 
+    cursor: pointer; 
+    padding: 4px;
+}
+
 .btn-edit { color: #f39c12; }
 .btn-delete { color: #e74c3c; }
+
+/* Убираем лишние стили, которые все ломали */
+.action-btns { display: flex; gap: 8px; }
