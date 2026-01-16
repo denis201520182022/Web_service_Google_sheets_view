@@ -623,21 +623,28 @@ def unlock_range(
     return {"status": "success"}
 
 # === СТИЛИЗАЦИЯ (НОВЫЙ БЛОК) ===
-
 @app.post("/api/styles/save")
 def save_styles(
     request_data: BatchStyleRequest,
+    request: Request, # Добавь request сюда для логов
     user: User = Depends(verify_token),
     db: Session = Depends(get_db)
 ):
-    """Сохранение стилей для ячеек"""
-    # 1. Проверяем доступ к таблице (простая проверка)
-    # В идеале нужно проверять через UserSpreadsheet или Google API, 
-    # но пока доверимся spreadsheet_id, так как стиль не ломает данные.
+    """Сохранение стилей с проверкой блокировок"""
     
+    # Проверяем блокировки (только для не-админов)
+    if not user.is_admin:
+        for item in request_data.styles:
+            lock = is_cell_locked(db, request_data.spreadsheet_id, request_data.sheet_name, item.row, item.col)
+            if lock:
+                logger.warning(f"🔒 {user.username} пытался покрасить заблокированную ячейку")
+                raise HTTPException(
+                    status_code=403, 
+                    detail=f"Нельзя форматировать заблокированные ячейки ({lock.range_notation})"
+                )
+
     count = 0
     for item in request_data.styles:
-        # Ищем, есть ли уже стиль для этой ячейки
         existing_style = db.query(CellStyle).filter(
             CellStyle.spreadsheet_id == request_data.spreadsheet_id,
             CellStyle.sheet_name == request_data.sheet_name,
@@ -646,11 +653,8 @@ def save_styles(
         ).first()
         
         if existing_style:
-            # Если стиль есть - обновляем JSON
-            # Мы полностью перезаписываем стиль для этой ячейки новым состоянием
             existing_style.style_json = item.style
         else:
-            # Если нет - создаем новый
             new_style = CellStyle(
                 spreadsheet_id=request_data.spreadsheet_id,
                 sheet_name=request_data.sheet_name,
@@ -662,10 +666,9 @@ def save_styles(
         count += 1
     
     db.commit()
-    logger.info(f"🎨 {user.username} обновил стили для {count} ячеек")
     return {"status": "success", "updated": count}
 
-
+    
 @app.get("/api/styles")
 def get_styles(
     spreadsheet_id: str,

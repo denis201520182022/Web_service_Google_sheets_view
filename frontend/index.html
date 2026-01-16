@@ -700,7 +700,25 @@
         async function applyStyle(type, value = null) {
             const selection = hot.getSelected();
             if (!selection) return;
-
+            // --- ПРОВЕРКА БЛОКИРОВКИ (для не-админов) ---
+            if (!isAdmin) {
+                for (let i = 0; i < selection.length; i++) {
+                    const [r1, c1, r2, c2] = selection[i];
+                    for (let r = Math.min(r1, r2); r <= Math.max(r1, r2); r++) {
+                        for (let c = Math.min(c1, c2); c <= Math.max(c1, c2); c++) {
+                            // Используем уже готовую функцию проверки из твоего кода
+                            const isLocked = activeLocks.some(lock => 
+                                lock.sheet_name === currentSheet && isCellInLock(r, c, lock.range)
+                            );
+                            if (isLocked) {
+                                showLockIndicator(); // Показываем красную плашку "Заблокировано"
+                                return; // Прерываем выполнение
+                            }
+                        }
+                    }
+                }
+            }
+            // --------------------------------------------
             const updates = [];
             
             for (let i = 0; i < selection.length; i++) {
