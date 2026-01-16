@@ -1026,6 +1026,11 @@
             const container = document.getElementById('hot-container');
             const formulaInput = document.getElementById('formula-input');
 
+            // Если таблица уже была создана, уничтожаем старый экземпляр (профилактика багов)
+            if (hot) {
+                hot.destroy();
+            }
+
             hot = new Handsontable(container, {
                 data: data,
                 startRows: 100,
@@ -1043,18 +1048,19 @@
                 cells: function(row, col) {
                     const cellProps = {};
                     const key = `${row},${col}`;
-                    const tableInstance = this.instance; 
                     
-                    // 1. ВЫПАДАЮЩИЕ СПИСКИ И ЗАЩИТА ИМЕН
-                    if (cellValidations[key]) {
+                    // 1. ЛОГИКА ВЫПАДАЮЩИХ СПИСКОВ И ЗАЩИТЫ ИМЕН
+                    if (cellValidations && cellValidations[key]) {
                         cellProps.type = 'dropdown';
                         const originalSource = cellValidations[key];
 
                         if (isAdmin) {
+                            // Админ видит всех и может всё
                             cellProps.source = originalSource;
                             cellProps.readOnly = false;
                         } else {
-                            const currentValue = tableInstance.getDataAtCell(row, col);
+                            // Обычный пользователь - берем значение прямо из массива data
+                            const currentValue = (data[row] && data[row][col]) ? data[row][col] : "";
 
                             if (!currentValue || currentValue === "") {
                                 cellProps.source = originalSource.filter(name => name === userFullName);
@@ -1069,8 +1075,8 @@
                         }
                     }
 
-                    // 2. БЛОКИРОВКИ АДМИНИСТРАТОРА
-                    if (activeLocks.length > 0) {
+                    // 2. БЛОКИРОВКИ АДМИНИСТРАТОРА (Только для не-админов!)
+                    if (!isAdmin && activeLocks && activeLocks.length > 0) {
                         for (let lock of activeLocks) {
                             if (lock.sheet_name !== currentSheet) continue;
                             if (isCellInLock(row, col, lock.range)) {
@@ -1081,12 +1087,13 @@
                         }
                     }
 
-                    // 3. РЕНДЕРЕР (Стили + Визуал)
+                    // 3. РЕНДЕРЕР (Визуал)
                     cellProps.renderer = function(instance, td, row, col, prop, value, cellProperties) {
                         const baseRenderer = Handsontable.renderers.getRenderer(cellProperties.type || 'text');
                         baseRenderer.apply(this, arguments);
                         
-                        if (cellProperties.readOnly && !cellProperties.className?.includes('locked-cell')) {
+                        // Серый фон для ячеек, которые заняты другими (только для юзеров)
+                        if (!isAdmin && cellProperties.readOnly && !cellProperties.className?.includes('locked-cell')) {
                             td.style.backgroundColor = '#f3f3f3';
                             td.style.color = '#999';
                         }
@@ -1168,7 +1175,9 @@
                 }
             });
 
-            setTimeout(() => hot.render(), 100);
+            setTimeout(() => {
+                if (hot) hot.render();
+            }, 100);
         }
 
         // === ОТПРАВКА ИЗМЕНЕНИЙ ===
