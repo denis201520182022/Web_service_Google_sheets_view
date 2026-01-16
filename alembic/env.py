@@ -8,14 +8,12 @@ import sys
 # __file__ -> alembic/env.py
 # dirname -> alembic/
 # dirname -> корень проекта (Handsontable)
-project_root = os.path.dirname(os.path.dirname(__file__))
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
 
-# Добавляем именно папку backend в путь поиска
-sys.path.insert(0, os.path.join(project_root, 'backend'))
-
-# Теперь эти импорты сработают, так как мы внутри папки backend
-from database import Base, DATABASE_URL
-from models import User, UserSpreadsheet, LockedRange, AuditLog, CellStyle
+# 2. Импортируем строго так же, как в основном коде
+from backend.database import Base, DATABASE_URL
+from backend.models import User, UserSpreadsheet, LockedRange, AuditLog, CellStyle
 
 config = context.config
 config.set_main_option('sqlalchemy.url', DATABASE_URL)
