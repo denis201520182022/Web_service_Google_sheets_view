@@ -427,7 +427,11 @@ def get_data(
 
         # 2. НОВОЕ: Получаем выпадающие списки (Data Validation)
         # 2. Получаем выпадающие списки (Data Validation)
+        # 2. Получаем выпадающие списки (Data Validation)
         validations = {}
+        # Кеш для диапазонов, чтобы не запрашивать один и тот же список многократно
+        range_cache = {} 
+        
         try:
             params = {
                 'includeGridData': True,
@@ -446,27 +450,32 @@ def get_data(
                                 condition = dv.get('condition', {})
                                 cond_type = condition.get('type')
                                 
-                                # ТИП 1: Список прописан вручную (ONE_OF_LIST)
+                                # ТИП 1: Список вручную
                                 if cond_type == 'ONE_OF_LIST':
                                     values = [v.get('userEnteredValue') for v in condition.get('values', []) if v.get('userEnteredValue')]
                                     validations[f"{r},{c}"] = values
                                 
-                                # ТИП 2: Список из диапазона (ONE_OF_RANGE)
+                                # ТИП 2: Список из диапазона
                                 elif cond_type == 'ONE_OF_RANGE':
-                                    # Google API отдает диапазон в формате "='Лист2'!$A$1:$A$10"
                                     range_expr = condition.get('values', [{}])[0].get('userEnteredValue')
                                     if range_expr:
-                                        # Убираем лишние символы '=' и '$' для gspread
                                         clean_range = range_expr.replace('=', '').replace('$', '')
-                                        try:
-                                            # Получаем значения из этого диапазона
-                                            # Используем spreadsheet.values_get, так как диапазон может быть на другом листе
-                                            range_data = spreadsheet.values_get(clean_range)
-                                            # Превращаем двумерный массив [[имя1], [имя2]] в плоский [имя1, имя2]
-                                            flat_values = [item[0] for item in range_data.get('values', []) if item]
-                                            validations[f"{r},{c}"] = flat_values
-                                        except Exception as range_err:
-                                            logger.error(f"⚠️ Ошибка получения данных диапазона {clean_range}: {range_err}")
+                                        
+                                        # ПРОВЕРКА КЕША: если мы уже загружали этот диапазон в этом запросе
+                                        if clean_range in range_cache:
+                                            validations[f"{r},{c}"] = range_cache[clean_range]
+                                        else:
+                                            try:
+                                                logger.info(f"📡 Запрос диапазона из Google: {clean_range}")
+                                                range_data = spreadsheet.values_get(clean_range)
+                                                flat_values = [str(item[0]) for item in range_data.get('values', []) if item and item[0]]
+                                                
+                                                # Сохраняем в кеш
+                                                range_cache[clean_range] = flat_values
+                                                validations[f"{r},{c}"] = flat_values
+                                            except Exception as range_err:
+                                                # Если квота все же вылетела, пишем ошибку, но не роняем весь сервис
+                                                logger.error(f"⚠️ Ошибка получения диапазона {clean_range}: {range_err}")
 
         except Exception as e:
             logger.error(f"⚠️ Ошибка получения валидаций: {e}", extra={'user_info': user.username})
