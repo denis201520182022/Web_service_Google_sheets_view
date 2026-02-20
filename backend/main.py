@@ -426,18 +426,16 @@ def get_data(
             formulas = {}
 
         # 2. НОВОЕ: Получаем выпадающие списки (Data Validation)
+        # 2. Получаем выпадающие списки (Data Validation)
         validations = {}
         try:
-            # Делаем прямой запрос к API для получения структуры ячеек
-            # Нам нужны поля dataValidation
             params = {
                 'includeGridData': True,
-                'ranges': f"'{worksheet.title}'!A1:Z100", # Берем запас 100 строк
+                'ranges': f"'{worksheet.title}'!A1:Z500", 
                 'fields': 'sheets.data.rowData.values.dataValidation'
             }
             sheet_data = spreadsheet.fetch_sheet_metadata(params)
             
-            # Парсим ответ
             grid_data = sheet_data['sheets'][0]['data'][0]
             if 'rowData' in grid_data:
                 for r, row in enumerate(grid_data['rowData']):
@@ -445,12 +443,31 @@ def get_data(
                         for c, cell in enumerate(row['values']):
                             if 'dataValidation' in cell:
                                 dv = cell['dataValidation']
-                                # Проверяем, что это список (ONE_OF_LIST)
-                                if dv.get('condition', {}).get('type') == 'ONE_OF_LIST':
-                                    values = [v.get('userEnteredValue') for v in dv['condition'].get('values', [])]
+                                condition = dv.get('condition', {})
+                                cond_type = condition.get('type')
+                                
+                                # ТИП 1: Список прописан вручную (ONE_OF_LIST)
+                                if cond_type == 'ONE_OF_LIST':
+                                    values = [v.get('userEnteredValue') for v in condition.get('values', []) if v.get('userEnteredValue')]
                                     validations[f"{r},{c}"] = values
-                                # Если список из диапазона (ONE_OF_RANGE), это чуть сложнее,
-                                # но для начала реализуем прямой список
+                                
+                                # ТИП 2: Список из диапазона (ONE_OF_RANGE)
+                                elif cond_type == 'ONE_OF_RANGE':
+                                    # Google API отдает диапазон в формате "='Лист2'!$A$1:$A$10"
+                                    range_expr = condition.get('values', [{}])[0].get('userEnteredValue')
+                                    if range_expr:
+                                        # Убираем лишние символы '=' и '$' для gspread
+                                        clean_range = range_expr.replace('=', '').replace('$', '')
+                                        try:
+                                            # Получаем значения из этого диапазона
+                                            # Используем spreadsheet.values_get, так как диапазон может быть на другом листе
+                                            range_data = spreadsheet.values_get(clean_range)
+                                            # Превращаем двумерный массив [[имя1], [имя2]] в плоский [имя1, имя2]
+                                            flat_values = [item[0] for item in range_data.get('values', []) if item]
+                                            validations[f"{r},{c}"] = flat_values
+                                        except Exception as range_err:
+                                            logger.error(f"⚠️ Ошибка получения данных диапазона {clean_range}: {range_err}")
+
         except Exception as e:
             logger.error(f"⚠️ Ошибка получения валидаций: {e}", extra={'user_info': user.username})
 
