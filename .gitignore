@@ -26,6 +26,8 @@ ENV/
 env/
 .venv
 
+DESCRIPTION.md
+
 # IDE
 .vscode/
 .idea/

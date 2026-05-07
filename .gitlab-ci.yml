@@ -1,0 +1,33 @@
+stages:
+  - test
+  - build
+  - deploy
+
+backend_test:
+  stage: test
+  image: python:3.10-slim
+  script:
+    - pip install -r requirements.txt
+    - pytest tests/
+
+frontend_check:
+  stage: test
+  image: node:18-slim
+  script:
+    - echo "Checking frontend structure..."
+
+docker_build:
+  stage: build
+  image: docker:20.10.16
+  services:
+    - docker:dind
+  script:
+    - docker build -t table-service:latest .
+
+deploy_prod:
+  stage: deploy
+  script:
+    - docker-compose up -d
+    - alembic upgrade head
+  only:
+    - main

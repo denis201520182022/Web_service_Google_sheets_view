@@ -1,3 +1,15 @@
+
+# 🚀 SheetPro - Прокси для Google Таблиц
+Безопасный веб-сервис для работы с Google Sheets через собственный интерфейс.
+
+
+
+
+
+
+
+
+
 source venv/bin/activate
 systemctl restart zabota_tables
 systemctl status zabota_tables
@@ -14,6 +26,3 @@ tftdy-77@veiwgsheets.iam.gserviceaccount.com
 
 
 
-
-# 🚀 SheetPro - Прокси для Google Таблиц
-Безопасный веб-сервис для работы с Google Sheets через собственный интерфейс.
