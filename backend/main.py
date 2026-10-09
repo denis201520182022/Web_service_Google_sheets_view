@@ -1,13 +1,9 @@
-"""
-FastAPI Backend для работы с Google Sheets
-С защитой от превышения квот (Retry with Exponential Backoff)
-"""
 import uvicorn
 import gspread
 import re
-import time  # Добавлено для задержки
+import time 
 from gspread import Cell
-from gspread.exceptions import APIError # Импорт для обработки ошибок
+from gspread.exceptions import APIError
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -23,7 +19,6 @@ from config import (
 )
 from auth import authenticate_user, create_access_token, verify_token
 
-# === ИНИЦИАЛИЗАЦИЯ ===
 app = FastAPI(title="Google Sheets Proxy API")
 
 app.add_middleware(
@@ -44,7 +39,6 @@ except Exception as e:
 
 active_sheets: Dict[str, any] = {}
 
-# === МОДЕЛИ ДАННЫХ ===
 class LoginRequest(BaseModel):
     username: str
     password: str
@@ -63,7 +57,6 @@ class BatchUpdate(BaseModel):
 class SheetSelection(BaseModel):
     sheet_name: str
 
-# === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===
 def extract_spreadsheet_id(url: str) -> Optional[str]:
     pattern = r'/spreadsheets/d/([a-zA-Z0-9-_]+)'
     match = re.search(pattern, url)
@@ -71,7 +64,6 @@ def extract_spreadsheet_id(url: str) -> Optional[str]:
         return match.group(1)
     return None
 
-# === API ENDPOINTS ===
 
 @app.get("/")
 def root():
@@ -184,30 +176,24 @@ def batch_update(batch: BatchUpdate, sheet_name: Optional[str] = None,
             row = item.row + 1
             col = item.col + 1
             cells_to_update.append(Cell(row, col, item.newValue))
-        
-        # === АЛГОРИТМ ПОВТОРНЫХ ПОПЫТОК ===
-        max_retries = 5  # Максимум попыток
+
+        max_retries = 5
         for i in range(max_retries):
             try:
-                # Попытка записи
                 worksheet.update_cells(cells_to_update, value_input_option='USER_ENTERED')
                 
-                # Если успешно - выходим из функции
                 return {"status": "success", "updated_count": len(cells_to_update)}
             
             except APIError as e:
-                # Проверяем код ошибки. 429 = Too Many Requests
                 if e.response.status_code == 429:
                     if i == max_retries - 1:
                         # Если это была последняя попытка - пробрасываем ошибку
                         raise HTTPException(status_code=429, detail="Слишком много запросов к Google, попробуйте позже")
                     
-                    # Экспоненциальная задержка: 1s, 2s, 4s, 8s...
                     sleep_time = (2 ** i)
                     print(f"⚠️ Превышен лимит квот. Ожидание {sleep_time} сек...")
                     time.sleep(sleep_time)
                 else:
-                    # Если ошибка другая (например, нет прав), падаем сразу
                     raise e
                     
     except Exception as e:
@@ -215,7 +201,6 @@ def batch_update(batch: BatchUpdate, sheet_name: Optional[str] = None,
 
 @app.post("/api/add-row")
 def add_row(username: str = Depends(verify_token)):
-    # Здесь тоже можно добавить retry логику, если нужно
     if username not in active_sheets:
         raise HTTPException(status_code=400, detail="Таблица не выбрана")
     try:

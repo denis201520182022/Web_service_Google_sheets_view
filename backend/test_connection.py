@@ -1,6 +1,5 @@
 """
 Скрипт для тестирования подключения к Google Sheets API
-Запусти: python test_connection.py
 """
 import sys
 import os
@@ -76,16 +75,14 @@ def main():
     print("=" * 60)
     print("🧪 SheetPro - Проверка подключения")
     print("=" * 60)
-    
-    # Запускаем все тесты
+
     results = []
     results.append(("Зависимости", test_imports()))
     results.append(("Service Account", test_service_account()))
     
-    if results[-1][1]:  # Если service account есть
+    if results[-1][1]:
         results.append(("Google API", test_google_connection()))
     
-    # Опционально: тест конкретной таблицы
     print("\n" + "=" * 60)
     sheet_id = input("📋 Введи ID таблицы для теста (Enter для пропуска): ").strip()
     if sheet_id:

@@ -14,13 +14,6 @@ security = HTTPBearer()
 def authenticate_user(username: str, password: str) -> bool:
     """
     Проверка логина/пароля
-    
-    Args:
-        username: Имя пользователя
-        password: Пароль
-    
-    Returns:
-        True если авторизация успешна, иначе False
     """
     if username in USERS and USERS[username] == password:
         return True
@@ -30,13 +23,6 @@ def authenticate_user(username: str, password: str) -> bool:
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     """
     Создание JWT токена
-    
-    Args:
-        data: Данные для кодирования в токен
-        expires_delta: Время жизни токена (опционально)
-    
-    Returns:
-        JWT токен в виде строки
     """
     to_encode = data.copy()
     
@@ -53,15 +39,6 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
     """
     Проверка JWT токена
-    
-    Args:
-        credentials: HTTP авторизационные данные с токеном
-    
-    Returns:
-        Username из токена
-    
-    Raises:
-        HTTPException: Если токен невалидный или истек
     """
     token = credentials.credentials
     
@@ -87,11 +64,5 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) 
 def get_current_user(username: str = Depends(verify_token)) -> str:
     """
     Получение текущего пользователя (алиас для verify_token)
-    
-    Args:
-        username: Username из токена
-    
-    Returns:
-        Username текущего пользователя
     """
     return username

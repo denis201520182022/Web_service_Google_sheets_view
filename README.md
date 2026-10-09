@@ -1,165 +1,80 @@
-# 🚀 SheetPro - Прокси для Google Таблиц
+# Zabota Tables
 
-Безопасный веб-сервис для работы с Google Sheets через собственный интерфейс.
+Веб-сервис для работы с Google Sheets через собственный интерфейс с авторизацией.
 
-## 📋 Возможности
+## Описание
 
-✅ **Авторизация** - защита паролем  
-✅ **Выбор таблиц** - подключение по ссылке  
-✅ **Множественные листы** - переключение между листами  
-✅ **Редактирование** - полноценная работа с ячейками  
-✅ **Формулы** - поддержка всех формул Google Sheets  
-✅ **Автосохранение** - изменения сразу в облаке  
-✅ **Красивый дизайн** - современный UI  
+Proxy-приложение, которое позволяет подключать Google Таблицы по ссылке и работать с ними через удобный веб-интерфейс (Handsontable). Все изменения синхронизируются с облаком в реальном времени.
 
-## 🛠️ Установка
+## Стек
 
-### 1. Требования
-```bash
-Python 3.8+
-pip install fastapi uvicorn gspread python-jose[cryptography]
+- **Backend:** FastAPI + gspread (Google Sheets API)
+- **Frontend:** Vanilla JS + Handsontable + SheetJS (Excel export)
+- **Auth:** JWT (Bearer token)
+- **Конфиг:** `.env` (python-dotenv)
+
+## Функционал
+
+- 🔐 JWT-авторизация (логин/пароль из конфига)
+- 🔗 Подключение таблиц по ссылке (Google Sheets API)
+- 📑 Множественные листы с переключением
+- ✏️ Редактирование ячеек в реальном времени (debounce 2s)
+- 📐 Формулы Google Sheets (`=SUM`, `=VLOOKUP`, `=IF` и др.)
+- 💾 Автосохранение с retry при превышении квот (Exponential Backoff)
+- 📥 Экспорт в Excel (.xlsx)
+- ➕ Добавление строк/столбцов
+
+## Структура
+
 ```
-
-### 2. Структура проекта
-```
-project/
 ├── backend/
-│   ├── main.py
-│   ├── auth.py
-│   ├── config.py
-│   └── service_account.json   # <- Получить из Google Cloud
+│   ├── main.py          # FastAPI сервер + Google Sheets API
+│   ├── auth.py          # JWT логика
+│   ├── config.py        # Конфиг из .env
+│   └── service_account.json  # Ключ доступа Google (добавить отдельно)
 ├── frontend/
-│   └── index.html
-└── README.md
+│   └── index.html       # Клиентское приложение
+└── requirements.txt
 ```
 
-### 3. Настройка Google Sheets API
+## Быстрый старт
 
-#### Шаг 1: Создать проект в Google Cloud
-1. Перейти: https://console.cloud.google.com/
-2. Создать новый проект
-3. Включить **Google Sheets API**
+### 1. Установка
 
-#### Шаг 2: Создать Service Account
-1. IAM & Admin → Service Accounts → Create
-2. Скачать JSON ключ
-3. Сохранить как `service_account.json` в папку `backend/`
-
-#### Шаг 3: Дать доступ к таблице
-1. Открыть вашу Google Таблицу
-2. Поделиться → добавить email из `service_account.json`
-3. Дать права "Редактор"
-
-### 4. Конфигурация
-
-Отредактируй `backend/config.py`:
-```python
-# Измени логины/пароли
-USERS = {
-    "admin": "твой_пароль",
-    "user1": "пароль123"
-}
-
-# Измени секретный ключ (для JWT)
-SECRET_KEY = "сгенерируй-случайную-строку-тут"
-```
-
-### 5. Запуск
-
-#### Backend:
 ```bash
+pip install -r requirements.txt
+cp backend/.env.example backend/.env  # и заполнить
+```
+
+### 2. Google Cloud API
+
+1. Создать проект в [Google Cloud Console](https://console.cloud.google.com/)
+2. Включить **Google Sheets API**
+3. Создать Service Account → скачать JSON-ключ
+4. Положить ключ в `backend/service_account.json`
+5. Дать доступ Service Account к нужным таблицам (права "Редактор")
+
+### 3. Запуск
+
+```bash
+# Backend
 cd backend
-python main.py
-```
-Сервер запустится на `http://127.0.0.1:8000`
+uvicorn main:app --host 0.0.0.0 --port 8000
 
-#### Frontend:
-Открой `frontend/index.html` в браузере
-
-## 📖 Использование
-
-### Вход
-1. Введи логин: `admin`
-2. Введи пароль из `config.py`
-
-### Подключение таблицы
-1. Скопируй ссылку на Google Таблицу
-2. Вставь в поле
-3. Нажми "Подключить"
-
-### Работа с данными
-- **Редактирование**: клик на ячейку → ввод текста
-- **Формулы**: начни с `=` (например: `=SUM(A1:A10)`)
-- **Переключение листов**: клик на вкладки вверху
-- **Добавление строк/столбцов**: кнопки на панели
-
-## 🔒 Безопасность
-
-⚠️ **Для production:**
-
-1. **Замени пароли** в `config.py` на сложные
-2. **Сгенерируй SECRET_KEY**:
-   ```python
-   import secrets
-   print(secrets.token_urlsafe(32))
-   ```
-3. **Используй HTTPS** (не HTTP)
-4. **Настрой CORS** правильно (не `allow_origins=["*"]`)
-5. **Добавь rate limiting**
-6. **Храни пароли в БД** (хэшированные)
-
-## 🐛 Решение проблем
-
-### Ошибка "Таблица не найдена"
-- Проверь, что Service Account имеет доступ к таблице
-
-### Ошибка "Невалидный токен"
-- Токен истек (8 часов), войди заново
-
-### Таблица не обновляется
-- Проверь консоль браузера (F12) на ошибки
-- Проверь логи backend
-
-### CORS ошибка
-- Убедись что backend запущен
-- Проверь `API_URL` в `index.html`
-
-## 📝 API Endpoints
-
-```
-POST /api/login              - Авторизация
-POST /api/set-sheet          - Установка таблицы
-GET  /api/sheets             - Список листов
-POST /api/select-sheet       - Выбор листа
-GET  /api/data               - Получение данных
-POST /api/batch-update       - Обновление ячеек
-POST /api/add-row            - Добавить строку
-POST /api/add-column         - Добавить столбец
+# Frontend
+Открыть frontend/index.html в браузере
 ```
 
-## 🎨 Кастомизация
+## API
 
-### Изменить цвета
-В `index.html` найди:
-```css
-background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-```
-Замени на свои цвета.
+| Метод    | Endpoint            | Описание              |
+|----------|---------------------|-----------------------|
+| POST     | `/api/login`        | Авторизация           |
+| POST     | `/api/set-sheet`    | Подключить таблицу    |
+| GET      | `/api/sheets`       | Список листов         |
+| POST     | `/api/select-sheet` | Выбрать лист          |
+| GET      | `/api/data`         | Получить данные       |
+| POST     | `/api/batch-update` | Обновить ячейки       |
+| POST     | `/api/add-row`      | Добавить строку       |
+| POST     | `/api/add-column`   | Добавить столбец      |
 
-### Изменить название
-Замени `SheetPro` на свое название в:
-- `<title>` тег
-- `.logo` блок
-- `.login-box h1`
-
-## 📄 Лицензия
-
-MIT - используй как хочешь
-
-## 🤝 Поддержка
-
-Если есть вопросы - пиши в Issues на GitHub
-
----
-
-**Сделано с ❤️ для удобной работы с таблицами**

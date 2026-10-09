@@ -524,7 +524,7 @@
         // === ОТРИСОВКА ВКЛАДОК ===
         function renderSheetTabs() {
             const container = document.getElementById('sheet-tabs');
-            const selector = document.getElementById('sheet-dropdown'); // Исправленный ID
+            const selector = document.getElementById('sheet-dropdown');
             
             container.innerHTML = '';
             selector.innerHTML = '<option value="">Выберите лист...</option>';
@@ -718,7 +718,6 @@
             }
         }
 
-        // ... Остальные функции без изменений ...
         function refreshData() { loadData(currentSheet); }
 
         function logout() {
@@ -754,27 +753,14 @@
             if (e.key === 'Enter') setSheet();
         });
 
-        // === СКАЧИВАНИЕ EXCEL ===
         function downloadExcel() {
             if (!hot) return;
 
-            // 1. Берем данные из таблицы (включая заголовки, если нужно, но hot.getData() берет только тело)
             const data = hot.getData();
-            
-            // Если нужны заголовки столбцов (A, B, C...), раскомментируйте код ниже:
-            // const headers = hot.getColHeader();
-            // data.unshift(headers);
-
-            // 2. Создаем рабочую книгу и лист
             const ws = XLSX.utils.aoa_to_sheet(data); // aoa = array of arrays
             const wb = XLSX.utils.book_new();
-            
-            // 3. Добавляем лист в книгу
-            // Берем имя файла из заголовка или ставим дефолтное
             const fileName = (document.getElementById('file-name').textContent || 'Table').trim();
             XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
-
-            // 4. Скачиваем файл
             XLSX.writeFile(wb, `${fileName}.xlsx`);
         }
     </script>
