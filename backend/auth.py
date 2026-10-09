@@ -1,5 +1,5 @@
 """
-Модуль авторизации с JWT и поддержкой БД
+Модуль авторизации с JWT
 """
 from datetime import datetime, timedelta
 from typing import Optional
@@ -191,8 +191,6 @@ def log_action(
         
         emoji = "🔒" if action.startswith("lock") else "📝" if action.startswith("update") or action.startswith("batch") else "📊"
         user_name = user.username if user else "anonymous"
-        
-        # Передаем user_name в extra, чтобы фильтр из main.py подставил его в начало строки
         logger.info(f"{emoji} Действие: {action} | sheet={sheet_name} | details={details}", extra={'user_info': user_name})
     except Exception as e:
         logger.error(f"❌ Ошибка записи audit лога: {e}")

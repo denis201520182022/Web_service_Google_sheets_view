@@ -19,9 +19,6 @@ Base = declarative_base()
 
 
 def get_db():
-    """
-    Генератор сессий БД для FastAPI dependency injection
-    """
     db = SessionLocal()
     try:
         yield db

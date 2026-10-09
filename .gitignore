@@ -60,7 +60,5 @@ logs/
 .coverage
 htmlcov/
 
-# Alembic
-# Не игнорируем папку alembic, но 
 
 service_accounts/

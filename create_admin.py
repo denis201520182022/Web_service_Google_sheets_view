@@ -12,19 +12,15 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 def create_admin(username: str = "admin", password: str = "admin123"):
     """Создает администратора в БД"""
     
-    # Создаем таблицы если их нет
     Base.metadata.create_all(bind=engine)
     print("✅ Таблицы БД созданы/проверены")
     
     db = SessionLocal()
     
     try:
-        # Проверяем, есть ли уже этот пользователь
         existing_user = db.query(User).filter(User.username == username).first()
         if existing_user:
             print(f"❌ Пользователь '{username}' уже существует!")
-            
-            # Предлагаем обновить пароль
             update = input("Обновить пароль? (y/n): ")
             if update.lower() == 'y':
                 new_password = input("Новый пароль: ")
@@ -33,7 +29,6 @@ def create_admin(username: str = "admin", password: str = "admin123"):
                 print(f"✅ Пароль для '{username}' обновлен!")
             return
         
-        # Создаем нового админа
         hashed_password = pwd_context.hash(password)
         admin = User(
             username=username,

@@ -22,7 +22,6 @@ class User(Base):
     first_name = Column(String(100), nullable=True)
     last_name = Column(String(100), nullable=True)
     
-    # Связи
     spreadsheets = relationship("UserSpreadsheet", back_populates="user", cascade="all, delete-orphan")
     locked_ranges = relationship("LockedRange", back_populates="user", cascade="all, delete-orphan")
     
@@ -43,7 +42,6 @@ class UserSpreadsheet(Base):
     access_count = Column(Integer, default=1)
     is_favorite = Column(Boolean, default=False)
     
-    # Связи
     user = relationship("User", back_populates="spreadsheets")
     
     def __repr__(self):
@@ -57,12 +55,11 @@ class LockedRange(Base):
     id = Column(Integer, primary_key=True, index=True)
     spreadsheet_id = Column(String(255), nullable=False, index=True)
     sheet_name = Column(String(255), nullable=False)
-    range_notation = Column(String(50), nullable=False)  # Например: A1:C10
+    range_notation = Column(String(50), nullable=False)
     locked_by = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     reason = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
-    # Связи
     user = relationship("User", back_populates="locked_ranges")
     
     def __repr__(self):
@@ -76,10 +73,10 @@ class AuditLog(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     username = Column(String(50))
-    action = Column(String(100), nullable=False, index=True)  # login, update_cell, lock_range, etc.
+    action = Column(String(100), nullable=False, index=True)
     spreadsheet_id = Column(String(255), nullable=True)
     sheet_name = Column(String(255), nullable=True)
-    details = Column(JSON, nullable=True)  # Дополнительные данные
+    details = Column(JSON, nullable=True)
     ip_address = Column(String(45), nullable=True)
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     
@@ -94,12 +91,9 @@ class CellStyle(Base):
     id = Column(Integer, primary_key=True, index=True)
     spreadsheet_id = Column(String(255), nullable=False, index=True)
     sheet_name = Column(String(255), nullable=False)
-    row = Column(Integer, nullable=False)  # 0-based индекс строки
-    col = Column(Integer, nullable=False)  # 0-based индекс колонки
-    style_json = Column(JSON, nullable=False)  # Например: {"bg": "#FFFF00", "bold": true}
-    
-    # Можно добавить связь с пользователем, если нужно знать, кто поменял стиль,
-    # но пока для простоты пропустим.
+    row = Column(Integer, nullable=False)
+    col = Column(Integer, nullable=False)
+    style_json = Column(JSON, nullable=False)
     
     def __repr__(self):
         return f"<CellStyle {self.sheet_name}!R{self.row}C{self.col}>"

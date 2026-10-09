@@ -1,25 +1,15 @@
-version: '3.8'
+FROM python:3.11-slim
 
-services:
-  db:
-    image: postgres:15-alpine
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    environment:
-      - POSTGRES_DB=table_db
-      - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=password
-    ports:
-      - "5432:5432"
+WORKDIR /app
 
-  backend:
-    build: .
-    ports:
-      - "8000:8000"
-    environment:
-      - DATABASE_URL=postgresql://user:password@db/table_db
-    depends_on:
-      - db
+RUN apt-get update && apt-get install -y \
+    gcc \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-volumes:
-  postgres_data:
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY backend/ ./backend/
+EXPOSE 8000
+
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]

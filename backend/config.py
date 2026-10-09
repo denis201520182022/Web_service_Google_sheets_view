@@ -1,44 +1,25 @@
-"""
-Конфигурация приложения с поддержкой .env файлов
-"""
 import os
 from dotenv import load_dotenv
 
-# Загружаем переменные из .env файла
 load_dotenv()
 
-# === JWT СЕКРЕТЫ ===
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "480"))  # 8 часов
-
-# === GOOGLE SHEETS ===
-# Определяем папку, где лежит этот скрипт (папка backend)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-# === GOOGLE SHEETS ===
-# Берем имя файла из .env или используем дефолтное
 _filename = os.getenv("SERVICE_ACCOUNT_FILE")
-
-# Склеиваем путь к папке backend с именем файла
 SERVICE_ACCOUNT_FILE = os.path.join(BASE_DIR, _filename)
-# === СЕРВЕР ===
 HOST = os.getenv("HOST")
 PORT = int(os.getenv("PORT"))
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-# === БАЗА ДАННЫХ ===
-DATABASE_URL = os.getenv(
-    "DATABASE_URL"
-)
-
-# === CORS (для development - разрешаем все) ===
 ALLOWED_ORIGINS_STR = os.getenv("ALLOWED_ORIGINS", "*")
 if ALLOWED_ORIGINS_STR == "*":
     ALLOWED_ORIGINS = ["*"]
 else:
     ALLOWED_ORIGINS = ALLOWED_ORIGINS_STR.split(",")
 
-# === ЛОГИРОВАНИЕ ===
+
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
 

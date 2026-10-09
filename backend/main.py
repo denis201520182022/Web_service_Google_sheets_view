@@ -1,7 +1,3 @@
-"""
-FastAPI Backend для работы с Google Sheets
-С поддержкой БД, блокировок и расширенным логированием
-"""
 import uvicorn
 import gspread
 import re
@@ -37,12 +33,11 @@ from backend.auth import (
     verify_token, 
     require_admin,
     log_action,
-    pwd_context  # <--- Добавь это
+    pwd_context
 )
 
 LOG_FORMAT = "%(asctime)s | %(levelname)-7s | %(user_info)s | %(message)s"
 
-# Кастомный фильтр для добавления контекста (имя пользователя)
 class ContextFilter(logging.Filter):
     def filter(self, record):
         # Если мы не можем достать юзера из контекста, пишем "SYSTEM"
@@ -53,7 +48,6 @@ logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
 logger = logging.getLogger("zabota_tables")
 logger.addFilter(ContextFilter())
 
-# === ИНИЦИАЛИЗАЦИЯ ===
 app = FastAPI(title="Zabota Tables API", version="2.0.0")
 
 app.add_middleware(
@@ -65,10 +59,8 @@ app.add_middleware(
     expose_headers=["*"],
 )
 app.mount("/static", StaticFiles(directory="frontend"), name="static")
-# Создание таблиц БД при запуске
 Base.metadata.create_all(bind=engine)
 logger.info("✅ База данных инициализирована")
-# === ИНИЦИАЛИЗАЦИЯ GOOGLE КЛИЕНТОВ ===
 SERVICE_ACCOUNTS_DIR = os.path.join(os.path.dirname(__file__), "service_accounts")
 gspread_clients = []
 
@@ -103,7 +95,6 @@ def get_gc():
 
 active_sheets: Dict[str, any] = {}
 
-# === МОДЕЛИ ДАННЫХ ===
 class LoginRequest(BaseModel):
     username: str
     password: str
@@ -131,7 +122,7 @@ class LockRangeRequest(BaseModel):
 class StyleUpdate(BaseModel):
     row: int
     col: int
-    style: Dict[str, Any]  # Словарь стилей, например {"bold": True, "align": "center"}
+    style: Dict[str, Any] 
 
 class BatchStyleRequest(BaseModel):
     spreadsheet_id: str
@@ -147,12 +138,12 @@ class UserCreate(BaseModel):
 
 class UserUpdate(BaseModel):
     username: Optional[str] = None
-    password: Optional[str] = None # Если None - пароль не меняем
+    password: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     is_admin: Optional[bool] = None
 
-# === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===
+
 def extract_spreadsheet_id(url: str) -> Optional[str]:
     pattern = r'/spreadsheets/d/([a-zA-Z0-9-_]+)'
     match = re.search(pattern, url)
@@ -188,7 +179,6 @@ def is_cell_locked(
     ).all()
     
     for lock in locked_ranges:
-        # Парсим range_notation (например: A1:C10)
         if is_cell_in_range(row, col, lock.range_notation):
             return lock
     
@@ -200,7 +190,6 @@ def is_cell_in_range(row: int, col: int, range_notation: str) -> bool:
     Проверка, попадает ли ячейка в диапазон
     """
     try:
-        # === ИСПРАВЛЕНИЕ ЗДЕСЬ ===
         if ':' not in range_notation:
             # Если это одна ячейка (например, "A1")
             start_cell = end_cell = range_notation
@@ -210,13 +199,11 @@ def is_cell_in_range(row: int, col: int, range_notation: str) -> bool:
             if len(parts) != 2:
                 return False
             start_cell, end_cell = parts
-        # =========================
         
         # Конвертируем A1 в координаты
         start_col, start_row = parse_cell_notation(start_cell)
         end_col, end_row = parse_cell_notation(end_cell)
-        
-        # Проверяем попадание (помним, что наши индексы 0-based)
+
         return (start_row <= row <= end_row and start_col <= col <= end_col)
     except:
         return False
@@ -234,8 +221,6 @@ def parse_cell_notation(cell: str) -> tuple:
     import string
     col_str = ''.join(filter(str.isalpha, cell)).upper()
     row_str = ''.join(filter(str.isdigit, cell))
-    
-    # Конвертируем столбец (A=0, B=1, ..., Z=25, AA=26)
     col_index = 0
     for char in col_str:
         col_index = col_index * 26 + (ord(char) - ord('A') + 1)
@@ -245,8 +230,6 @@ def parse_cell_notation(cell: str) -> tuple:
     
     return (col_index, row_index)
 
-
-# === API ENDPOINTS ===
 
 @app.get("/")
 def read_root():
@@ -263,7 +246,6 @@ def login(
     user = authenticate_user(db, credentials.username, credentials.password)
     
     if not user:
-        # Здесь пишем SYSTEM, так как пользователь еще не опознан
         logger.warning(f"❌ Неудачная попытка входа: {credentials.username}", extra={'user_info': 'SYSTEM'})
         log_action(db, None, "login_failed", details={"username": credentials.username}, ip_address=get_client_ip(request))
         raise HTTPException(status_code=401, detail="Неверный логин или пароль")
@@ -281,7 +263,6 @@ def login(
         "token_type": "bearer",
         "username": user.username,
         "is_admin": user.is_admin,
-        # --- ДОБАВЬ ЭТИ ПОЛЯ ---
         "first_name": user.first_name,
         "last_name": user.last_name
     }
@@ -306,8 +287,7 @@ def set_sheet(
         spreadsheet = get_gc().open_by_key(spreadsheet_id)
         active_sheets[user.username] = spreadsheet
         sheet_names = [ws.title for ws in spreadsheet.worksheets()]
-        
-        # Сохраняем в БД
+
         existing = db.query(UserSpreadsheet).filter(
             UserSpreadsheet.user_id == user.id,
             UserSpreadsheet.spreadsheet_id == spreadsheet_id
@@ -415,8 +395,7 @@ def get_data(
             worksheet = spreadsheet._active_worksheet[user.username]
         else:
             worksheet = spreadsheet.sheet1
-        
-        # 1. Получаем значения и формулы (как и было)
+
         all_values = worksheet.get_all_values()
         try:
             raw_formulas = worksheet.get_all_values(value_render_option='FORMULA')
@@ -425,11 +404,7 @@ def get_data(
         except:
             formulas = {}
 
-        # 2. НОВОЕ: Получаем выпадающие списки (Data Validation)
-        # 2. Получаем выпадающие списки (Data Validation)
-        # 2. Получаем выпадающие списки (Data Validation)
         validations = {}
-        # Кеш для диапазонов, чтобы не запрашивать один и тот же список многократно
         range_cache = {} 
         
         try:
@@ -554,7 +529,6 @@ def batch_update(
                         status_code=403,
                         detail="Вы можете выбрать только своё собственное имя"
                     )
-        # ----------------------------------
         
         cells_to_update = []
         for item in batch.updates:
@@ -726,11 +700,11 @@ def unlock_range(
     
     return {"status": "success"}
 
-# === СТИЛИЗАЦИЯ (НОВЫЙ БЛОК) ===
+
 @app.post("/api/styles/save")
 def save_styles(
     request_data: BatchStyleRequest,
-    request: Request, # Добавь request сюда для логов
+    request: Request,
     user: User = Depends(verify_token),
     db: Session = Depends(get_db)
 ):

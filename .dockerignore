@@ -1,0 +1,36 @@
+# Переменные окружения
+.env
+!.env.example
+
+# Сервисные аккаунты (включаются вручную в контейнер)
+backend/service_account*.json
+backend/service_accounts/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+venv/
+.env/
+
+# IDE
+.vscode/
+.idea/
+
+# Git
+.git/
+.gitignore
+
+# Docs
+README.md
+FORMULAS.md
+
+# Логи и БД
+*.log
+*.db
+*.sqlite
+logs/
+.pytest_cache/
+.coverage
